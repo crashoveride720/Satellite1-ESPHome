@@ -31,7 +31,7 @@ esphome:
           // ---------------------------------------------------------------
           // Ring buffer for network mic streaming (SPSC, lock-free)
           // ---------------------------------------------------------------
-          static const size_t RING_SZ = 32768;
+          static const size_t RING_SZ = 65536;
           static uint8_t *s_ring = nullptr;
           static volatile size_t s_wr = 0;
           static volatile size_t s_rd = 0;
@@ -110,13 +110,13 @@ esphome:
 
           <div class="card"><h2>Audio Monitor</h2>
           <button class="btn btn-green" id="btn-stream" onclick="toggleStream()">Stream to Browser</button>
-          <button class="btn btn-orange" id="btn-lineout" onclick="toggleSwitch('Mic Monitor (Line-Out)')">Stream to Line-Out</button>
+          <button class="btn btn-orange" id="btn-lineout" onclick="toggleLineOut()">Stream to Line-Out</button>
           <span style="font-size:.8em;margin-left:6px" id="s-lineout"></span>
           <div class="meter"><div class="meter-fill" id="level" style="width:0%"></div></div>
           <div id="audio-status">Idle</div>
           <label style="margin-top:8px">Channel</label>
           <select id="sel-ch" onchange="setSelect('Mic Monitor Channel',this.value)">
-          <option>Ch 0 - Voice Assistant</option><option>Ch 1 - Wake Word</option><option>Both (Mono Mix)</option></select>
+          <option>Ch 0 - Voice Assistant</option><option>Ch 1 - Wake Word</option></select>
           <label>Wake Word Mic Gain: <span id="gain-val">6</span></label>
           <input type="range" min="1" max="64" value="6" id="sl-gain" oninput="document.getElementById('gain-val').textContent=this.value" onchange="setNumber('Wake Word Mic Gain',this.value)">
           </div>
@@ -208,7 +208,7 @@ esphome:
           <script>
           var API='';
           var AUDIO_URL='http://'+location.hostname+':8081/mic_stream';
-          var streaming=false,abortCtrl=null,audioCtx=null;
+          var streaming=false,abortCtrl=null,audioCtx=null,lineoutOn=false;
 
           function setStatus(t){document.getElementById('audio-status').textContent=t}
           function setLevel(p){document.getElementById('level').style.width=Math.min(100,p)+'%';
@@ -240,6 +240,16 @@ esphome:
             document.getElementById('btn-stream').className='btn btn-green';
             setStatus('Idle');setLevel(0);
           }
+          function toggleLineOut(){
+            lineoutOn=!lineoutOn;
+            sw('Mic Monitor (Line-Out)',lineoutOn?'turn_on':'turn_off');
+            setLineOutBtn();
+          }
+          function setLineOutBtn(){
+            var btn=document.getElementById('btn-lineout');
+            if(lineoutOn){btn.textContent='Stop Streaming';btn.className='btn btn-red'}
+            else{btn.textContent='Stream to Line-Out';btn.className='btn btn-orange'}
+          }
           function startAudio(){
             audioCtx=new AudioContext({sampleRate:16000});
             abortCtrl=new AbortController();
@@ -247,28 +257,46 @@ esphome:
             if(!resp.ok)throw new Error('HTTP '+resp.status);
             var reader=resp.body.getReader();
             var nextTime=0,hdrSkipped=false,hdrBuf=new Uint8Array(0);
-            setStatus('Streaming...');
+            var accumBufs=[],accumLen=0,oddByte=-1,playStarted=false;
+            var PRE_BUF=8192,MIN_SCHED=4096;
+            setStatus('Buffering...');
+            function drainAccum(){
+              var total=new Uint8Array(accumLen);var off=0;
+              for(var i=0;i<accumBufs.length;i++){total.set(accumBufs[i],off);off+=accumBufs[i].length}
+              accumBufs=[];accumLen=0;
+              var usable=total.length&~1;
+              if(usable===0)return;
+              if(total.length>usable){oddByte=total[usable]}
+              var ab=new ArrayBuffer(usable);
+              new Uint8Array(ab).set(total.subarray(0,usable));
+              var i16=new Int16Array(ab);
+              var f32=new Float32Array(i16.length);var peak=0;
+              for(var i=0;i<i16.length;i++){f32[i]=i16[i]/32768;var a=f32[i]<0?-f32[i]:f32[i];if(a>peak)peak=a}
+              setLevel(peak*100);
+              var buf=audioCtx.createBuffer(1,f32.length,16000);buf.getChannelData(0).set(f32);
+              var src=audioCtx.createBufferSource();src.buffer=buf;src.connect(audioCtx.destination);
+              var now=audioCtx.currentTime;
+              if(nextTime<now)nextTime=now+0.08;
+              src.start(nextTime);nextTime+=buf.duration;
+            }
             function pump(){
               if(!streaming)return;
               reader.read().then(function(r){
               if(r.done||!streaming)return;
-              var pcm=r.value;
+              var data=r.value;
               if(!hdrSkipped){
-                var c=new Uint8Array(hdrBuf.length+pcm.length);c.set(hdrBuf);c.set(pcm,hdrBuf.length);
+                var c=new Uint8Array(hdrBuf.length+data.length);c.set(hdrBuf);c.set(data,hdrBuf.length);
                 if(c.length<44){hdrBuf=c;pump();return}
-                pcm=c.slice(44);hdrSkipped=true;if(!pcm.length){pump();return}
+                data=c.slice(44);hdrSkipped=true;if(!data.length){pump();return}
               }
-              if(pcm.byteLength%2!==0)pcm=pcm.slice(0,pcm.byteLength-1);
-              if(!pcm.length){pump();return}
-              var i16=new Int16Array(pcm.buffer,pcm.byteOffset,pcm.byteLength/2);
-              var f32=new Float32Array(i16.length);var peak=0;
-              for(var i=0;i<i16.length;i++){f32[i]=i16[i]/32768;var a=Math.abs(f32[i]);if(a>peak)peak=a}
-              setLevel(peak*100);
-              var buf=audioCtx.createBuffer(1,f32.length,16000);buf.getChannelData(0).set(f32);
-              var src=audioCtx.createBufferSource();src.buffer=buf;src.connect(audioCtx.destination);
-              var now=audioCtx.currentTime;if(nextTime<now+0.01)nextTime=now+0.05;
-              src.start(nextTime);nextTime+=buf.duration;pump();
-              }).catch(function(){});
+              if(oddByte>=0){var tmp=new Uint8Array(1+data.length);tmp[0]=oddByte;tmp.set(data,1);data=tmp;oddByte=-1}
+              accumBufs.push(data);accumLen+=data.length;
+              var samples=accumLen>>1;
+              if(!playStarted){
+                if(samples>=PRE_BUF){playStarted=true;setStatus('Streaming...');drainAccum()}
+              }else if(samples>=MIN_SCHED){drainAccum()}
+              pump();
+              }).catch(function(e){if(streaming)setStatus('Connection lost')});
             }
             pump();
             });
@@ -371,6 +399,9 @@ esphome:
                 document.getElementById('s-lineout-stat').textContent=con?'Yes':'No';
                 document.getElementById('s-lineout').textContent=con?'(jack connected)':'(no jack)';
               }
+              else if(eid.indexOf('switch-')===0&&eid.indexOf('mic_monitor')>0&&eid.indexOf('line_out')>0){
+                lineoutOn=(v==='ON'||v===true||v==='true');setLineOutBtn();
+              }
               else if(sseTextMap[eid]){document.getElementById(sseTextMap[eid]).textContent=v||'--';
                 if(eid==='text_sensor-device_name'&&v){updateTitle(v)}}
               else{
@@ -418,6 +449,10 @@ esphome:
               var con=(v==='ON'||v===true||v==='true');
               document.getElementById('s-lineout-stat').textContent=con?'Yes':'No';
               document.getElementById('s-lineout').textContent=con?'(jack connected)':'(no jack)';
+            });
+            pollEntity('/switch/Mic%20Monitor%20(Line-Out)',function(d){
+              var v=d.value!=null?d.value:d.state;
+              lineoutOn=(v==='ON'||v===true||v==='true');setLineOutBtn();
             });
             pollEntity('/text_sensor/XMOS%20Firmware',function(d){
               var v=d.value||d.state;
@@ -529,7 +564,7 @@ esphome:
             httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
             cfg.server_port = 8081;
             cfg.ctrl_port = 32770;
-            cfg.stack_size = 8192;
+            cfg.stack_size = 12288;
             cfg.max_open_sockets = 2;
             cfg.max_uri_handlers = 4;
             cfg.lru_purge_enable = true;
@@ -559,13 +594,13 @@ esphome:
                 esp_err_t err = httpd_resp_send_chunk(req, (const char *)wav_hdr, 44);
                 if (err != ESP_OK) return err;
 
-                uint8_t chunk[2048];
+                uint8_t chunk[4096];
                 while (id(mic_stream_active)) {
                   size_t wr = *c->wr;
                   size_t rd = *c->rd;
                   size_t avail = (c->size + wr - rd) % c->size;
-                  if (avail == 0) {
-                    vTaskDelay(pdMS_TO_TICKS(10));
+                  if (avail < 512) {
+                    vTaskDelay(pdMS_TO_TICKS(5));
                     continue;
                   }
                   size_t n = avail < sizeof(chunk) ? avail : sizeof(chunk);
@@ -625,9 +660,9 @@ esphome:
                     int32_t peak_out = 0;
                     for (size_t f = 0; f < num_frames; f++) {
                       int32_t left = in[f * 2], right = in[f * 2 + 1];
-                      int32_t val = (ch == 0) ? left : (ch == 1) ? right : (left / 2) + (right / 2);
+                      int32_t val = (ch == 0) ? left : right;
                       int32_t sample = val >> 16;
-                      if (ch == 1 || ch == 2) {
+                      if (ch == 1) {
                         sample *= gain;
                         if (sample > 32767) sample = 32767;
                         if (sample < -32768) sample = -32768;
@@ -641,7 +676,7 @@ esphome:
                     static uint32_t log_ctr = 0;
                     if (++log_ctr >= 62) {
                       float db = (peak_out > 0) ? 20.0f * log10f((float)peak_out / 32767.0f) : -100.0f;
-                      const char *cn = (ch == 0) ? "Ch0 (VA)" : (ch == 1) ? "Ch1 (MWW)" : "Mix";
+                      const char *cn = (ch == 0) ? "Ch0 (VA)" : "Ch1 (MWW)";
                       ESP_LOGI("mic_monitor", "Monitor: %s  |  gain: %dx  |  output peak: %.1f dBFS", cn, (int)gain, db);
                       log_ctr = 0;
                     }
@@ -656,9 +691,9 @@ esphome:
                 size_t n = num_frames < 512 ? num_frames : 512;
                 for (size_t f = 0; f < n; f++) {
                   int32_t left = in[f * 2], right = in[f * 2 + 1];
-                  int32_t val = (ch == 0) ? left : (ch == 1) ? right : (left / 2) + (right / 2);
+                  int32_t val = (ch == 0) ? left : right;
                   int32_t sample = val >> 16;
-                  if (ch == 1 || ch == 2) {
+                  if (ch == 1) {
                     sample *= gain;
                     if (sample > 32767) sample = 32767;
                     if (sample < -32768) sample = -32768;
@@ -922,7 +957,6 @@ select:
     options:
       - "Ch 0 - Voice Assistant"
       - "Ch 1 - Wake Word"
-      - "Both (Mono Mix)"
     initial_option: "Ch 0 - Voice Assistant"
     optimistic: true
     restore_value: false
@@ -930,8 +964,6 @@ select:
       - lambda: |-
           if (x == "Ch 1 - Wake Word") {
             id(mic_monitor_channel) = 1;
-          } else if (x == "Both (Mono Mix)") {
-            id(mic_monitor_channel) = 2;
           } else {
             id(mic_monitor_channel) = 0;
           }
