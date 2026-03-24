@@ -49,7 +49,9 @@ packages:
               condition:
                 - lambda: return id(init_in_progress);
                 - lambda: return id(xflash).has_image_embedded();
-                - lambda: return !id(xflash).match_embedded( id(satellite1_id).xmos_fw_version );
+                - lambda: |-
+                    id(satellite1_id).refresh_version();
+                    return !id(xflash).match_embedded( id(satellite1_id).xmos_fw_version );
               then:
                 - memory_flasher.write_embedded_image:
 

@@ -150,6 +150,7 @@ void Satellite1::set_spi_flash_direct_access_mode(bool enable) {
   } else if (this->spi_flash_direct_access_enabled_) {
     this->state = SAT_DETACHED_STATE;
     this->connection_attempts = 0;
+    this->last_attempt_timestamp_ = millis();
   }
   this->spi_flash_direct_access_enabled_ = enable;
   this->state_callback_.call();
@@ -168,12 +169,31 @@ bool Satellite1::dfu_get_fw_version_() {
   return true;
 }
 
+bool Satellite1::refresh_version() { return this->dfu_get_fw_version_(); }
+
 bool Satellite1::check_for_xmos_() {
   if (!this->dfu_get_fw_version_()) {
     return false;
   }
   const uint8_t compare_zeros[5] = {0};
-  return (memcmp(this->xmos_fw_version, compare_zeros, 5) != 0);
+  if (memcmp(this->xmos_fw_version, compare_zeros, 5) == 0) {
+    return false;
+  }
+
+  // Re-read to guard against garbage during XMOS boot
+  uint8_t first_read[5];
+  memcpy(first_read, this->xmos_fw_version, 5);
+  delay(10);
+  if (!this->dfu_get_fw_version_()) {
+    memset(this->xmos_fw_version, 0, 5);
+    return false;
+  }
+  if (memcmp(first_read, this->xmos_fw_version, 5) != 0) {
+    ESP_LOGW(TAG, "XMOS version inconsistent between reads, retrying later");
+    memset(this->xmos_fw_version, 0, 5);
+    return false;
+  }
+  return true;
 }
 
 void Satellite1::xmos_hardware_reset() {

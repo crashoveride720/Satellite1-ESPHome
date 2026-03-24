@@ -20,7 +20,7 @@ static const uint8_t GPIO_SERVICER_RESID_PORT_OUT_A = 221;
 
 static const uint8_t DFU_CONTROLLER_SERVICER_RESID = 240;
 
-static const uint8_t MAX_CONNECTION_ATTEMPTS = 3;
+static const uint8_t MAX_CONNECTION_ATTEMPTS = 10;
 
 namespace DC_RESOURCE {
 enum dc_resource_enum {
@@ -152,6 +152,8 @@ class Satellite1 : public Component,
   void add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
 
   void xmos_hardware_reset();
+
+  bool refresh_version();
 
  protected:
   bool dfu_get_fw_version_();
