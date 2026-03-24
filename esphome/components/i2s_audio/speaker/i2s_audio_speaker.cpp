@@ -194,6 +194,10 @@ size_t I2SAudioSpeaker::play(const uint8_t *data, size_t length, TickType_t tick
     ESP_LOGE(TAG, "Cannot play audio, speaker failed to setup");
     return 0;
   }
+  // Allow retry after "Failed to start speaker task" (e.g. low memory); clear error so start() will run again
+  if (this->status_has_error() && this->state_ == speaker::STATE_STOPPED && this->speaker_task_handle_ == nullptr) {
+    this->status_clear_error();
+  }
   if (this->state_ != speaker::STATE_RUNNING && this->state_ != speaker::STATE_STARTING) {
     this->start();
   }
