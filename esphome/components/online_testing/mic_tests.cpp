@@ -3,9 +3,25 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esp_dsp.h"
+#ifdef USE_WIFI
+#include "esphome/components/wifi/wifi_component.h"
+#endif
 
 #include <cinttypes>
 #include <cstdio>
+#include <cstring>
+
+#ifdef USE_ESP32
+extern "C" {
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <lwip/sockets.h>
+#include <lwip/inet.h>
+}
+#endif
+
+#include <cerrno>
 
 
 namespace esphome {
@@ -111,6 +127,9 @@ float MicTester::get_setup_priority() const { return setup_priority::AFTER_CONNE
 void MicTester::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MicTester...");
   this->read_sweep_();
+  if (this->udp_packet_buffer_.empty() && this->udp_stream_packet_samples_ > 0) {
+    this->udp_packet_buffer_.resize(this->udp_stream_packet_samples_);
+  }
 }
 
 bool MicTester::allocate_buffers_() {
@@ -131,6 +150,9 @@ void MicTester::clear_buffers_() {
   this->read_pos_ = 0;
   this->energy_accumulator_ = 0.0f;
   this->energy_sample_count_ = 0;
+  this->sweep_armed_ = true;
+  this->last_sweep_ms_ = 0;
+  this->reset_udp_packet_();
 }
 
 void MicTester::deallocate_buffers_() {
@@ -186,8 +208,9 @@ void MicTester::on_audio_data_(const std::vector<uint8_t> &data) {
 
   for (size_t i = 0; i < num_frames; i++) {
     size_t idx = wp % limit;
-    int16_t sample = static_cast<int16_t>(samples_32[i * 2 + this->channel_] >> 16);
+    int16_t sample = static_cast<int16_t>(samples_32[i * 2 + this->channel_] >> 13);
     this->input_buffer_[idx] = sample;
+    this->append_udp_sample_(sample);
     this->energy_accumulator_ += static_cast<float>(sample) * static_cast<float>(sample);
     this->energy_sample_count_++;
     wp++;
@@ -263,7 +286,14 @@ void MicTester::loop() {
       float corr = detect_sweep_streaming(temp, chunk, this->sweep_norm_, 1.0e6f, true);
       ESP_LOGD("sweep", "Sweep-Detect corr=%.2f (ch=%d)", corr, this->channel_);
 
-      if (corr > DETECTION_THRESHOLD) {
+      if (corr < DETECTION_RESET_THRESHOLD) {
+        this->sweep_armed_ = true;
+      }
+
+      const uint32_t now = millis();
+      if (this->sweep_armed_ && corr > DETECTION_THRESHOLD && (now - this->last_sweep_ms_ > DETECTION_COOLDOWN_MS)) {
+        this->last_sweep_ms_ = now;
+        this->sweep_armed_ = false;
         ESP_LOGI("sweep", "Sweep detected: corr=%.2f", corr);
         this->sweep_detected_trigger_->trigger();
       }
@@ -386,6 +416,126 @@ float MicTester::get_mic_energy() {
   this->energy_accumulator_ = 0.0f;
   this->energy_sample_count_ = 0;
   return rms;
+}
+
+void MicTester::set_udp_stream_enabled(bool enabled) {
+  if (this->udp_stream_enabled_ == enabled)
+    return;
+  this->udp_stream_enabled_ = enabled;
+  if (!enabled) {
+    this->close_udp_socket_();
+    this->reset_udp_packet_();
+  }
+}
+
+void MicTester::set_udp_stream_host(const std::string &host) {
+  this->udp_stream_host_ = host;
+  this->udp_target_valid_ = false;
+  this->close_udp_socket_();
+}
+
+void MicTester::set_udp_stream_port(uint16_t port) {
+  this->udp_stream_port_ = port;
+  this->udp_target_valid_ = false;
+  this->close_udp_socket_();
+}
+
+void MicTester::set_udp_stream_packet_samples(size_t samples) {
+  if (samples == 0)
+    return;
+  this->udp_stream_packet_samples_ = samples;
+  this->udp_packet_buffer_.assign(samples, 0);
+  this->udp_packet_fill_ = 0;
+}
+
+void MicTester::set_udp_stream_target(const std::string &host, uint16_t port) {
+  this->udp_stream_host_ = host;
+  this->udp_stream_port_ = port;
+  this->udp_target_valid_ = false;
+  this->close_udp_socket_();
+}
+
+bool MicTester::ensure_udp_socket_ready_() {
+  if (!this->udp_stream_enabled_)
+    return false;
+  if (this->udp_stream_host_.empty() || this->udp_stream_port_ == 0)
+    return false;
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component == nullptr || !wifi::global_wifi_component->is_connected())
+    return false;
+#endif
+
+  if (!this->udp_target_valid_) {
+    struct in_addr addr {};
+    if (inet_aton(this->udp_stream_host_.c_str(), &addr) == 0) {
+      uint32_t now = millis();
+      if (now - this->last_udp_error_log_ > 5000) {
+        ESP_LOGW(TAG, "UDP target invalid: %s", this->udp_stream_host_.c_str());
+        this->last_udp_error_log_ = now;
+      }
+      return false;
+    }
+    std::memset(&this->udp_dest_addr_, 0, sizeof(this->udp_dest_addr_));
+    this->udp_dest_addr_.sin_family = AF_INET;
+    this->udp_dest_addr_.sin_port = htons(this->udp_stream_port_);
+    this->udp_dest_addr_.sin_addr = addr;
+    this->udp_target_valid_ = true;
+  }
+
+  if (this->udp_socket_ < 0) {
+    this->udp_socket_ = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (this->udp_socket_ < 0) {
+      uint32_t now = millis();
+      if (now - this->last_udp_error_log_ > 5000) {
+        ESP_LOGW(TAG, "UDP socket open failed: errno %d", errno);
+        this->last_udp_error_log_ = now;
+      }
+      return false;
+    }
+  }
+
+  return true;
+}
+
+void MicTester::close_udp_socket_() {
+  if (this->udp_socket_ >= 0) {
+    close(this->udp_socket_);
+    this->udp_socket_ = -1;
+  }
+  this->udp_target_valid_ = false;
+}
+
+void MicTester::append_udp_sample_(int16_t sample) {
+  if (!this->ensure_udp_socket_ready_())
+    return;
+
+  if (this->udp_stream_packet_samples_ == 0)
+    return;
+
+  if (this->udp_packet_buffer_.size() != this->udp_stream_packet_samples_) {
+    this->udp_packet_buffer_.assign(this->udp_stream_packet_samples_, 0);
+    this->udp_packet_fill_ = 0;
+  }
+
+  this->udp_packet_buffer_[this->udp_packet_fill_++] = sample;
+  if (this->udp_packet_fill_ < this->udp_stream_packet_samples_)
+    return;
+
+  const size_t byte_count = this->udp_stream_packet_samples_ * sizeof(int16_t);
+  int sent = lwip_sendto(this->udp_socket_, this->udp_packet_buffer_.data(), byte_count, 0,
+                         reinterpret_cast<struct sockaddr *>(&this->udp_dest_addr_), sizeof(this->udp_dest_addr_));
+  if (sent < 0) {
+    uint32_t now = millis();
+    if (now - this->last_udp_error_log_ > 5000) {
+      ESP_LOGW(TAG, "UDP send failed: errno %d", errno);
+      this->last_udp_error_log_ = now;
+    }
+  }
+  this->udp_packet_fill_ = 0;
+}
+
+void MicTester::reset_udp_packet_() {
+  this->udp_packet_fill_ = 0;
 }
 
 void MicTester::signal_stop_() {
