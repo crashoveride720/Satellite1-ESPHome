@@ -84,6 +84,9 @@ online_testing:
   id: mic_tester
   microphone: sat1_mics
   media_file: audio_test_sweep
+  udp_stream_enabled: false
+  udp_stream_port: 5005
+  udp_stream_packet_samples: 960
   on_detected:
     then:
       - logger.log: "Sweep detected"
@@ -207,6 +210,39 @@ improv_serial:
             - lambda: |-
                 float energy = id(mic_tester).get_mic_energy();
                 ESP_LOGI("mic_energy", "Mic energy (ch=%d): %.6f", id(mic_tester).get_channel(), energy);
+
+      - if:
+          condition:
+            lambda: return x.get_action() == std::string("SET_UDP_AUDIO_TARGET");
+          then:
+            - lambda: |-
+                if (!x.get_url().has_value()) {
+                  ESP_LOGW("udp_audio", "SET_UDP_AUDIO_TARGET missing url");
+                  return;
+                }
+                std::string target = *x.get_url();
+                size_t colon = target.find(':');
+                if (colon == std::string::npos) {
+                  ESP_LOGW("udp_audio", "Invalid UDP target: %s", target.c_str());
+                  return;
+                }
+                std::string host = target.substr(0, colon);
+                int port = std::stoi(target.substr(colon + 1));
+                if (port <= 0 || port > 65535) {
+                  ESP_LOGW("udp_audio", "Invalid UDP port: %d", port);
+                  return;
+                }
+                id(mic_tester).set_udp_stream_target(host, static_cast<uint16_t>(port));
+                id(mic_tester).set_udp_stream_enabled(true);
+                ESP_LOGI("udp_audio", "UDP audio target set to %s:%d", host.c_str(), port);
+
+      - if:
+          condition:
+            lambda: return x.get_action() == std::string("STOP_UDP_STREAMING");
+          then:
+            - lambda: |-
+                id(mic_tester).set_udp_stream_enabled(false);
+                ESP_LOGI("udp_audio", "UDP audio streaming disabled");
 
       - if:
           condition:

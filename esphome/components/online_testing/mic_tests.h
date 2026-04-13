@@ -11,6 +11,13 @@
 
 #include <unordered_map>
 #include <vector>
+#include <string>
+
+#ifdef USE_ESP32
+extern "C" {
+#include <lwip/sockets.h>
+}
+#endif
 
 namespace esphome {
 namespace online_testing {
@@ -45,6 +52,12 @@ class MicTester : public Component {
 
   float get_mic_energy();
 
+  void set_udp_stream_enabled(bool enabled);
+  void set_udp_stream_host(const std::string &host);
+  void set_udp_stream_port(uint16_t port);
+  void set_udp_stream_packet_samples(size_t samples);
+  void set_udp_stream_target(const std::string &host, uint16_t port);
+
   bool is_running() const { return this->state_ != State::IDLE; }
   bool is_mic_active() const { return this->state_ != State::IDLE && this->state_ != State::STOP_MICROPHONE && this->state_ != State::STOPPING_MICROPHONE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
@@ -65,6 +78,11 @@ class MicTester : public Component {
   void set_state_(State state);
   void set_state_(State state, State desired_state);
   void signal_stop_();
+
+  bool ensure_udp_socket_ready_();
+  void close_udp_socket_();
+  void append_udp_sample_(int16_t sample);
+  void reset_udp_packet_();
 
   void on_audio_data_(const std::vector<uint8_t> &data);
 
@@ -96,6 +114,16 @@ class MicTester : public Component {
 
   bool sweep_armed_{true};
   uint32_t last_sweep_ms_{0};
+  bool udp_stream_enabled_{false};
+  std::string udp_stream_host_{};
+  uint16_t udp_stream_port_{0};
+  size_t udp_stream_packet_samples_{960};
+  std::vector<int16_t> udp_packet_buffer_{};
+  size_t udp_packet_fill_{0};
+  int udp_socket_{-1};
+  bool udp_target_valid_{false};
+  struct sockaddr_in udp_dest_addr_ {};
+  uint32_t last_udp_error_log_{0};
 
   State state_{State::IDLE};
   State desired_state_{State::IDLE};
