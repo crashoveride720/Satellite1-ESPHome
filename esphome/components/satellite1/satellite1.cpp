@@ -94,14 +94,18 @@ bool Satellite1::transfer(uint8_t resource_id, uint8_t command, uint8_t *payload
   }
 
   uint8_t send_recv_buf[256 + 3] = {0};
-  int status_report_dummies = std::max<int>(0, DC_STATUS_REGISTER::REGISTER_LEN - payload_len - 1);
+  const bool is_read = (command & CONTROL_CMD_READ_BIT) != 0;
+  const uint8_t read_request_len = payload_len + (is_read ? 1 : 0);
+  int status_report_dummies = std::max<int>(0, DC_STATUS_REGISTER::REGISTER_LEN - read_request_len - 1);
 
   int attempts = 3;
   do {
     send_recv_buf[0] = resource_id;
     send_recv_buf[1] = command;
-    send_recv_buf[2] = payload_len + !!(command & CONTROL_CMD_READ_BIT);
-    memcpy(&send_recv_buf[3], payload, payload_len);
+    send_recv_buf[2] = read_request_len;
+    if (payload_len > 0 && payload != nullptr) {
+      memcpy(&send_recv_buf[3], payload, payload_len);
+    }
     this->enable();
     this->transfer_array(&send_recv_buf[0], payload_len + 3 + status_report_dummies);
     this->disable();
@@ -123,21 +127,44 @@ bool Satellite1::transfer(uint8_t resource_id, uint8_t command, uint8_t *payload
     uint8_t *arr = this->dc_status_register_;
   }
 
-  if (command & CONTROL_CMD_READ_BIT) {
-    attempts = 3;
+  if (is_read) {
+    attempts = 10;
     do {
-      memset(send_recv_buf, 0, payload_len + 3);
+      const uint8_t read_len = std::max<uint8_t>(3, read_request_len);
+      memset(send_recv_buf, 0, read_len);
       this->enable();
-      this->transfer_array(&send_recv_buf[0], payload_len + 3);
+      this->transfer_array(&send_recv_buf[0], read_len);
       this->disable();
-      vTaskDelay(1);
-    } while (send_recv_buf[0] == CONTROL_COMMAND_IGNORED_IN_DEVICE && attempts-- > 0);
 
-    if (send_recv_buf[0] == CONTROL_COMMAND_IGNORED_IN_DEVICE) {
-      return false;
-    }
+      if (send_recv_buf[0] == CONTROL_COMMAND_IGNORED_IN_DEVICE) {
+        vTaskDelay(1);
+        continue;
+      }
 
-    memcpy(payload, &send_recv_buf[1], payload_len);
+      const bool payload_available = (send_recv_buf[0] == DC_RET_STATUS::PAYLOAD_AVAILABLE);
+      const bool legacy_dfu_payload = (resource_id == DC_RESOURCE::DFU_CONTROLLER && command == DC_DFU_CMD::GET_VERSION &&
+                                       send_recv_buf[0] == 0);
+      const bool legacy_audio_payload = (send_recv_buf[0] == 0 &&
+                                         (resource_id == DC_AUDIO_PIPELINE::MIC_OUTPUT_SETTINGS_RES_ID ||
+                                          resource_id == DC_AUDIO_PIPELINE::SPEAKER_SETTINGS_RES_ID ||
+                                          resource_id == DC_AUDIO_PIPELINE::MIC_INPUT_SETTINGS_RES_ID));
+      if (!(payload_available || legacy_dfu_payload || legacy_audio_payload)) {
+        vTaskDelay(1);
+        continue;
+      }
+
+      if (read_len < (payload_len + 1)) {
+        vTaskDelay(1);
+        continue;
+      }
+
+      if (payload_len > 0 && payload != nullptr) {
+        memcpy(payload, &send_recv_buf[1], payload_len);
+      }
+      return true;
+    } while (attempts-- > 0);
+
+    return false;
   }
 
   return true;
