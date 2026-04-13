@@ -131,6 +131,8 @@ void MicTester::clear_buffers_() {
   this->read_pos_ = 0;
   this->energy_accumulator_ = 0.0f;
   this->energy_sample_count_ = 0;
+  this->sweep_armed_ = true;
+  this->last_sweep_ms_ = 0;
 }
 
 void MicTester::deallocate_buffers_() {
@@ -263,7 +265,14 @@ void MicTester::loop() {
       float corr = detect_sweep_streaming(temp, chunk, this->sweep_norm_, 1.0e6f, true);
       ESP_LOGD("sweep", "Sweep-Detect corr=%.2f (ch=%d)", corr, this->channel_);
 
-      if (corr > DETECTION_THRESHOLD) {
+      if (corr < DETECTION_RESET_THRESHOLD) {
+        this->sweep_armed_ = true;
+      }
+
+      const uint32_t now = millis();
+      if (this->sweep_armed_ && corr > DETECTION_THRESHOLD && (now - this->last_sweep_ms_ > DETECTION_COOLDOWN_MS)) {
+        this->last_sweep_ms_ = now;
+        this->sweep_armed_ = false;
         ESP_LOGI("sweep", "Sweep detected: corr=%.2f", corr);
         this->sweep_detected_trigger_->trigger();
       }

@@ -94,6 +94,9 @@ class MicTester : public Component {
   float energy_accumulator_{0.0f};
   size_t energy_sample_count_{0};
 
+  bool sweep_armed_{true};
+  uint32_t last_sweep_ms_{0};
+
   State state_{State::IDLE};
   State desired_state_{State::IDLE};
 };
