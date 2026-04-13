@@ -8,7 +8,7 @@
 namespace esphome {
 namespace satellite1 {
 
-const uint8_t ECHO_RES_ID = 230;
+const uint8_t ECHO_RES_ID = 37;
 
 const uint8_t ECHO_SERVICER_CMD_ECHO_1 = 0;
 const uint8_t ECHO_SERVICER_CMD_ECHO_64 = 1;
