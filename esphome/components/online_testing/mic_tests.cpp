@@ -17,7 +17,9 @@ static constexpr size_t INPUT_BUFFER_SIZE = 16000 * 2;
 
 static const size_t SWEEP_LEN = 512;
 static constexpr size_t MAX_BUFFER_SIZE = SWEEP_LEN * 2;
-static constexpr float DETECTION_THRESHOLD = 0.30f;
+static constexpr float DETECTION_THRESHOLD = 0.25f;
+static constexpr float DETECTION_RESET_THRESHOLD = 0.20f;
+static constexpr uint32_t DETECTION_COOLDOWN_MS = 150;
 
 // Aligned buffers
 __attribute__((aligned(16))) float mic_buffer[MAX_BUFFER_SIZE];
@@ -258,7 +260,7 @@ void MicTester::loop() {
       }
       this->read_pos_ = rp + chunk;
 
-      float corr = detect_sweep_streaming(temp, chunk, this->sweep_norm_);
+      float corr = detect_sweep_streaming(temp, chunk, this->sweep_norm_, 1.0e6f, true);
       ESP_LOGD("sweep", "Sweep-Detect corr=%.2f (ch=%d)", corr, this->channel_);
 
       if (corr > DETECTION_THRESHOLD) {
@@ -393,4 +395,3 @@ void MicTester::signal_stop_() {
 
 }  // namespace online_testing
 }  // namespace esphome
-
