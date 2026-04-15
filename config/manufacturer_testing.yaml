@@ -48,8 +48,14 @@ globals:
     initial_value: '0'
 
 
+wifi:
+  on_connect: !remove
+  on_disconnect: !remove
+
 api:
   encryption: !remove
+  on_client_connected: !remove
+  on_client_disconnected: !remove
 
 media_player:
   - id: !extend external_media_player
