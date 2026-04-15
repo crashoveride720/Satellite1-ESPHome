@@ -26,6 +26,29 @@ static inline int32_t read_i32_le(const uint8_t *src) {
                               (static_cast<uint32_t>(src[2]) << 16) | (static_cast<uint32_t>(src[3]) << 24));
 }
 
+#ifdef DEBUG_SPI_DEVICE_CONTROL
+static std::string format_bytes(const uint8_t *data, size_t len, size_t limit = 12) {
+  if (data == nullptr || len == 0) {
+    return "";
+  }
+  const size_t shown = len < limit ? len : limit;
+  std::string out;
+  out.reserve(shown * 3 + 4);
+  for (size_t i = 0; i < shown; ++i) {
+    char buf[4];
+    snprintf(buf, sizeof(buf), "%02x", data[i]);
+    out.append(buf);
+    if (i + 1 < shown) {
+      out.push_back(' ');
+    }
+  }
+  if (len > shown) {
+    out.append(" ...");
+  }
+  return out;
+}
+#endif
+
 void Satellite1::setup() {
   this->spi_setup();
   this->enable();
@@ -125,9 +148,16 @@ bool Satellite1::transfer(uint8_t resource_id, uint8_t command, uint8_t *payload
     if (payload_len > 0 && payload != nullptr) {
       memcpy(&send_recv_buf[3], payload, payload_len);
     }
+#ifdef DEBUG_SPI_DEVICE_CONTROL
+    ESP_LOGD(TAG, "SPI TX hdr res=%u cmd=0x%02x len=%u data=%s", resource_id, command, read_request_len,
+             format_bytes(send_recv_buf, payload_len + 3).c_str());
+#endif
     this->enable();
     this->transfer_array(&send_recv_buf[0], payload_len + 3 + status_report_dummies);
     this->disable();
+#ifdef DEBUG_SPI_DEVICE_CONTROL
+    ESP_LOGD(TAG, "SPI RX phase1 data=%s", format_bytes(send_recv_buf, payload_len + 3 + status_report_dummies).c_str());
+#endif
     vTaskDelay(1);
   } while (send_recv_buf[0] == CONTROL_COMMAND_IGNORED_IN_DEVICE && attempts-- > 0);
 
@@ -154,6 +184,9 @@ bool Satellite1::transfer(uint8_t resource_id, uint8_t command, uint8_t *payload
       this->enable();
       this->transfer_array(&send_recv_buf[0], read_len);
       this->disable();
+#ifdef DEBUG_SPI_DEVICE_CONTROL
+      ESP_LOGD(TAG, "SPI RX phase2 data=%s", format_bytes(send_recv_buf, read_len).c_str());
+#endif
 
       if (send_recv_buf[0] == CONTROL_COMMAND_IGNORED_IN_DEVICE) {
         vTaskDelay(1);
