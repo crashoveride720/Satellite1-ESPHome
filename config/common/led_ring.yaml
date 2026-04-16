@@ -62,24 +62,23 @@ light:
             auto light_color = id(led_ring).current_values;
             Color color(light_color.get_red() * 255, light_color.get_green() * 255,
                   light_color.get_blue() * 255);
+            auto phys_odd = [](int log) -> int {
+              int l = log % 12;
+              if (l < 0) l += 12;
+              return 2 * l + 1;
+            };
+            int b = id(global_led_animation_index) % 12;
+            if (b < 0) b += 12;
             for (int i = 0; i < 24; i++) {
-              if (i == id(global_led_animation_index) % 24) {
-                it[i] = color;
-              } else if (i == (id(global_led_animation_index) + 23) % 24) {
-                it[i] = color * 192;
-              } else if (i == (id(global_led_animation_index) + 22) % 24) {
-                it[i] = color * 128;
-              } else if (i == (id(global_led_animation_index) + 12) % 24) {
-                it[i] = color;
-              } else if (i == (id(global_led_animation_index) + 11) % 24) {
-                it[i] = color * 192;
-              } else if (i == (id(global_led_animation_index) + 10) % 24) {
-                it[i] = color * 128;
-              } else {
-                it[i] = Color::BLACK;
-              }
+              it[i] = Color::BLACK;
             }
-            id(global_led_animation_index) = (id(global_led_animation_index) + 1) % 24;
+            it[phys_odd(b)] = color;
+            it[phys_odd(b - 1)] = color * 192;
+            it[phys_odd(b - 2)] = color * 128;
+            it[phys_odd(b + 6)] = color;
+            it[phys_odd(b + 5)] = color * 192;
+            it[phys_odd(b + 4)] = color * 128;
+            id(global_led_animation_index) = (id(global_led_animation_index) + 1) % 12;
       - addressable_lambda:
           name: "Listening For Command"
           update_interval: 50ms
@@ -87,24 +86,23 @@ light:
             auto light_color = id(led_ring).current_values;
             Color color(light_color.get_red() * 255, light_color.get_green() * 255,
                   light_color.get_blue() * 255);
+            auto phys_odd = [](int log) -> int {
+              int l = log % 12;
+              if (l < 0) l += 12;
+              return 2 * l + 1;
+            };
+            int b = id(global_led_animation_index) % 12;
+            if (b < 0) b += 12;
             for (int i = 0; i < 24; i++) {
-              if (i == id(global_led_animation_index) % 24) {
-                it[i] = color;
-              } else if (i == (id(global_led_animation_index) + 23) % 24) {
-                it[i] = color * 192;
-              } else if (i == (id(global_led_animation_index) + 22) % 24) {
-                it[i] = color * 128;
-              } else if (i == (id(global_led_animation_index) + 12) % 24) {
-                it[i] = color;
-              } else if (i == (id(global_led_animation_index) + 11) % 24) {
-                it[i] = color * 192;
-              } else if (i == (id(global_led_animation_index) + 10) % 24) {
-                it[i] = color * 128;
-              } else {
-                it[i] = Color::BLACK;
-              }
+              it[i] = Color::BLACK;
             }
-            id(global_led_animation_index) = (id(global_led_animation_index) + 1) % 24;
+            it[phys_odd(b)] = color;
+            it[phys_odd(b - 1)] = color * 192;
+            it[phys_odd(b - 2)] = color * 128;
+            it[phys_odd(b + 6)] = color;
+            it[phys_odd(b + 5)] = color * 192;
+            it[phys_odd(b + 4)] = color * 128;
+            id(global_led_animation_index) = (id(global_led_animation_index) + 1) % 12;
       - addressable_lambda:
           name: "Thinking"
           update_interval: 10ms
@@ -140,27 +138,26 @@ light:
           name: "Replying"
           update_interval: 50ms
           lambda: |-
-            id(global_led_animation_index) = (24 + id(global_led_animation_index) - 1) % 24;
+            id(global_led_animation_index) = (12 + id(global_led_animation_index) - 1) % 12;
             auto light_color = id(led_ring).current_values;
             Color color(light_color.get_red() * 255, light_color.get_green() * 255,
                   light_color.get_blue() * 255);
+            auto phys_odd = [](int log) -> int {
+              int l = log % 12;
+              if (l < 0) l += 12;
+              return 2 * l + 1;
+            };
+            int b = id(global_led_animation_index) % 12;
+            if (b < 0) b += 12;
             for (int i = 0; i < 24; i++) {
-              if (i == (id(global_led_animation_index)) % 24) {
-                it[i] = color;
-              } else if (i == ( id(global_led_animation_index) + 1) % 24) {
-                it[i] = color * 192;
-              } else if (i == ( id(global_led_animation_index) + 2) % 24) {
-                it[i] = color * 128;
-              } else if (i == ( id(global_led_animation_index) + 12) % 24) {
-                it[i] = color;
-              } else if (i == ( id(global_led_animation_index) + 13) % 24) {
-                it[i] = color * 192;
-              } else if (i == ( id(global_led_animation_index) + 14) % 24) {
-                it[i] = color * 128;
-              } else {
-                it[i] = Color::BLACK;
-              }
+              it[i] = Color::BLACK;
             }
+            it[phys_odd(b)] = color;
+            it[phys_odd(b + 1)] = color * 192;
+            it[phys_odd(b + 2)] = color * 128;
+            it[phys_odd(b + 6)] = color;
+            it[phys_odd(b + 7)] = color * 192;
+            it[phys_odd(b + 8)] = color * 128;
       - addressable_lambda:
           name: "Muted or Silent"
           update_interval: 16ms
