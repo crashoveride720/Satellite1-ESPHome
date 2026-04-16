@@ -13,7 +13,8 @@ esp32:
     #platform_version: 51.3.7
     
     components:
-      - espressif/esp-nn==1.1.2
+      - name: espressif/esp-nn
+        ref: "1.1.2"
 
     sdkconfig_options:
       CONFIG_ESP32_S3_BOX_BOARD: "y"
