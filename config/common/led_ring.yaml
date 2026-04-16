@@ -502,6 +502,21 @@ light:
                 }
               }
               index = (index + 1);
+      - addressable_lambda:
+          name: "Individual LED Test"
+          update_interval: 1s
+          lambda: |-
+            if (initial_run) {
+              id(global_led_animation_index) = 0;
+            }
+            auto light_color = id(led_ring).current_values;
+            Color color(light_color.get_red() * 255, light_color.get_green() * 255,
+                  light_color.get_blue() * 255);
+            int idx = id(global_led_animation_index) % 24;
+            for (int i = 0; i < 24; i++) {
+              it[i] = (i == idx) ? color : Color::BLACK;
+            }
+            id(global_led_animation_index) = (id(global_led_animation_index) + 1) % 24;
 
 script:
   # Master script controlling the LEDs, based on different conditions : initialization in progress, wifi and api connected and voice assistant phase.
@@ -552,6 +567,8 @@ script:
             id(control_leds_muted_or_silent).execute();
           } else if (id(external_media_player).volume == 0.0f || id(external_media_player).is_muted()) {
             id(control_leds_muted_or_silent).execute();
+          } else if (id(debug_led_walk_active)) {
+            id(control_leds_debug_individual_led).execute();
           } else if (id(voice_assistant_phase) == ${voice_assist_idle_phase_id}) {
             id(control_leds_voice_assistant_idle_phase).execute();
           }
@@ -635,6 +652,14 @@ script:
             light.is_on: led_ring
           then:
             light.turn_on: led_ring
+
+  # Debug dashboard: one LED at a time (1s per LED, full ring in 24s)
+  - id: control_leds_debug_individual_led
+    then:
+      - light.turn_on:
+          brightness: !lambda return max(id(led_ring).current_values.get_brightness(), 0.2f);
+          id: voice_assistant_leds
+          effect: "Individual LED Test"
 
   # Script executed when the voice assistant is waiting for a command (After the wake word)
   # Slow clockwise spin of the LED ring.

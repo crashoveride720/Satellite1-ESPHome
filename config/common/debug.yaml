@@ -134,7 +134,8 @@ esphome:
           <label style="margin-top:4px">Animation Test</label>
           <select id="sel-led" onchange="setSelect('LED Animation Test',this.value)">
           <option>Normal</option><option>Waiting for Command</option><option>Listening for Command</option>
-          <option>Thinking</option><option>Replying</option><option>Error</option></select>
+          <option>Thinking</option><option>Replying</option><option>Error</option>
+          <option>Individual LED Test</option></select>
           </div>
 
           <div class="card"><h2>Environment</h2>
@@ -856,6 +857,10 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  - id: debug_led_walk_active
+    type: bool
+    restore_value: no
+    initial_value: 'false'
 
 switch:
   - platform: template
@@ -980,24 +985,31 @@ select:
       - "Thinking"
       - "Replying"
       - "Error"
+      - "Individual LED Test"
     initial_option: "Normal"
     optimistic: true
     restore_value: false
     on_value:
       - lambda: |-
           static bool setup_done = false;
-          if (x == "Waiting for Command") {
-            id(voice_assistant_phase) = ${voice_assist_waiting_for_command_phase_id};
-          } else if (x == "Listening for Command") {
-            id(voice_assistant_phase) = ${voice_assist_listening_for_command_phase_id};
-          } else if (x == "Thinking") {
-            id(voice_assistant_phase) = ${voice_assist_thinking_phase_id};
-          } else if (x == "Replying") {
-            id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
-          } else if (x == "Error") {
-            id(voice_assistant_phase) = ${voice_assist_error_phase_id};
-          } else {
+          if (x == "Individual LED Test") {
+            id(debug_led_walk_active) = true;
             id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
+          } else {
+            id(debug_led_walk_active) = false;
+            if (x == "Waiting for Command") {
+              id(voice_assistant_phase) = ${voice_assist_waiting_for_command_phase_id};
+            } else if (x == "Listening for Command") {
+              id(voice_assistant_phase) = ${voice_assist_listening_for_command_phase_id};
+            } else if (x == "Thinking") {
+              id(voice_assistant_phase) = ${voice_assist_thinking_phase_id};
+            } else if (x == "Replying") {
+              id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
+            } else if (x == "Error") {
+              id(voice_assistant_phase) = ${voice_assist_error_phase_id};
+            } else {
+              id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
+            }
           }
           if (!setup_done) {
             setup_done = true;
