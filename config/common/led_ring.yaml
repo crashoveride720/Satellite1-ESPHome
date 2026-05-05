@@ -460,48 +460,48 @@ light:
           name: "Jack Plugged"
           update_interval: 40ms
           lambda: |-
-              static uint8_t index = 0;
-              if (initial_run) {
-                index = 0;
-              }
-              auto light_color = id(led_ring).current_values;
-              Color color(light_color.get_red() * 255, light_color.get_green() * 255,
-                    light_color.get_blue() * 255);
-              if (index <= 12) {
-                for (int i = 0; i < 24; i++) {
-                  if (i == index) {
-                    it[i] = color;
-                  } else if (i == (24 - index) % 24) {
-                    it[i] = color;
-                  } else {
-                    it[i] = Color::BLACK;
-                  }
+            static uint8_t index = 0;
+            if (initial_run) {
+              index = 0;
+            }
+            auto light_color = id(led_ring).current_values;
+            Color color(light_color.get_red() * 255, light_color.get_green() * 255,
+                  light_color.get_blue() * 255);
+            if (index <= 12) {
+              for (int i = 0; i < 24; i++) {
+                if (i == index) {
+                  it[i] = color;
+                } else if (i == (24 - index) % 24) {
+                  it[i] = color;
+                } else {
+                  it[i] = Color::BLACK;
                 }
               }
-              index = (index + 1);
+            }
+            index = (index + 1);
       - addressable_lambda:
           name: "Jack Unplugged"
           update_interval: 40ms
           lambda: |-
-              static uint8_t index = 0;
-              if (initial_run) {
-                index = 0;
-              }
-              auto light_color = id(led_ring).current_values;
-              Color color(light_color.get_red() * 255, light_color.get_green() * 255,
-                    light_color.get_blue() * 255);
-              if (index <= 12) {
-                for (int i = 0; i < 24; i++) {
-                  if (i == 12 - index) {
-                    it[i] = color;
-                  } else if (i == (12 + index) % 24) {
-                    it[i] = color;
-                  } else {
-                    it[i] = Color::BLACK;
-                  }
+            static uint8_t index = 0;
+            if (initial_run) {
+              index = 0;
+            }
+            auto light_color = id(led_ring).current_values;
+            Color color(light_color.get_red() * 255, light_color.get_green() * 255,
+                  light_color.get_blue() * 255);
+            if (index <= 12) {
+              for (int i = 0; i < 24; i++) {
+                if (i == 12 - index) {
+                  it[i] = color;
+                } else if (i == (12 + index) % 24) {
+                  it[i] = color;
+                } else {
+                  it[i] = Color::BLACK;
                 }
               }
-              index = (index + 1);
+            }
+            index = (index + 1);
 
 script:
   # Master script controlling the LEDs, based on different conditions : initialization in progress, wifi and api connected and voice assistant phase.

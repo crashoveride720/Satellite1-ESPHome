@@ -156,8 +156,7 @@ binary_sensor:
                                             condition:
                                               and:
                                                 - switch.is_off: master_mute_switch
-                                                - not:
-                                                    voice_assistant.is_running
+                                                - not: voice_assistant.is_running
                                             then:
                                               - script.execute:
                                                   id: play_sound

@@ -106,6 +106,7 @@ satellite1:
   data_rate: 8000000
   spi_mode: MODE3
   xmos_rst_pin: GPIO4
+  mic_gain: 1.0
 
   on_xmos_no_response:
     then:
@@ -122,10 +123,11 @@ satellite1:
 memory_flasher:
   - platform: satellite1
     id: xflash
+
     embed_flash_image:
-      image_version: ${xmos_fw_version}
-      image_file: https://raw.githubusercontent.com/FutureProofHomes/Documentation/refs/heads/main/assets/firmware/xmos/${xmos_fw_version}/satellite1_firmware_fixed_delay.factory.bin
-      md5_file: https://raw.githubusercontent.com/FutureProofHomes/Documentation/refs/heads/main/assets/firmware/xmos/${xmos_fw_version}/satellite1_firmware_fixed_delay.factory.md5
+      image_version: v1.0.4-dev.13
+      image_file: ../xmos_firmware/satellite1_firmware_fixed_delay.factory.bin
+      md5_file: ../xmos_firmware//satellite1_firmware_fixed_delay.factory.md5
 
     on_flashing_start:
       then:

@@ -9,6 +9,11 @@ namespace satellite1 {
 
 static const uint8_t CONTROL_RESOURCE_CNTRL_ID = 1;
 static const uint8_t CONTROL_CMD_READ_BIT = 0x80;
+static const uint8_t CONTROL_SPECIAL_RESID = 0;
+static const uint8_t CONTROL_GET_VERSION = (0 | CONTROL_CMD_READ_BIT);
+static const uint8_t CONTROL_GET_LAST_COMMAND_STATUS = (1 | CONTROL_CMD_READ_BIT);
+static const uint8_t DEVICE_STATUS_READY_REGISTER_IDX = 0;
+static const uint8_t DEVICE_STATUS_READY_VALUE = 1;
 
 static const uint8_t RET_STATUS_PAYLOAD_AVAIL = 23;
 
@@ -19,6 +24,7 @@ static const uint8_t GPIO_SERVICER_RESID_PORT_IN_B = 212;
 static const uint8_t GPIO_SERVICER_RESID_PORT_OUT_A = 221;
 
 static const uint8_t DFU_CONTROLLER_SERVICER_RESID = 240;
+static const uint8_t AUDIO_PIPELINE_MIC_INPUT_SETTINGS_RESID = 232;
 
 static const uint8_t MAX_CONNECTION_ATTEMPTS = 3;
 
@@ -52,6 +58,37 @@ enum dc_dfu_cmd_id {
   GET_VERSION = (88 | CONTROL_CMD_READ_BIT),
 };
 }
+
+namespace DC_AUDIO_PIPELINE_CMD {
+enum dc_audio_pipeline_cmd_id {
+  GET_SETTINGS = (0 | CONTROL_CMD_READ_BIT),
+  SET_SETTINGS_PARTIAL = 1,
+  GET_MIC_RMS = (3 | CONTROL_CMD_READ_BIT),
+};
+}
+
+namespace DC_AUDIO_PIPELINE_FIELD {
+enum dc_audio_pipeline_field_mask {
+  MIC_GAIN = (1u << 0),
+  REF_GAIN = (1u << 1),
+};
+}
+
+struct __attribute__((packed)) MicInputPipelineSettings {
+  int32_t mic_gain;
+  int32_t ref_gain;
+};
+
+struct __attribute__((packed)) MicInputPipelineSettingsUpdate {
+  uint32_t field_mask;
+  MicInputPipelineSettings settings;
+};
+
+struct __attribute__((packed)) MicInputRmsStatus {
+  uint32_t window_samples;
+  uint32_t sample_count;
+  int32_t rms_q31[4];
+};
 
 enum Satellite1State : uint8_t {
   SAT_DETACHED_STATE,
@@ -125,6 +162,13 @@ class Satellite1 : public Component,
    *                       issues or ignored commands.
    */
   bool request_status_register_update();
+  bool set_mic_gain(float gain_linear);
+  bool set_mic_gain_q24(int32_t gain_q24);
+  bool get_mic_rms_status(MicInputRmsStatus *status);
+  void set_config_mic_gain(float gain_linear) {
+    this->config_mic_gain_ = gain_linear;
+    this->has_config_mic_gain_ = true;
+  }
 
   /**
    * @brief Retrieves the cached value of a specific status register.
@@ -156,13 +200,22 @@ class Satellite1 : public Component,
 
  protected:
   bool dfu_get_fw_version_();
+  bool read_control_version_(uint8_t *version);
+  bool is_device_ready_();
   bool check_for_xmos_();
+  bool read_last_command_status_(uint8_t *status);
+  void log_last_command_status_(uint8_t resource_id, uint8_t command, const char *context);
   CallbackManager<void()> state_callback_{};
 
   uint32_t last_attempt_timestamp_{0};
 
   uint8_t dc_status_register_[DC_STATUS_REGISTER::REGISTER_LEN];
   bool spi_flash_direct_access_enabled_{false};
+  bool has_config_mic_gain_{false};
+  bool config_mic_gain_applied_{false};
+  float config_mic_gain_{1.0f};
+  bool status_query_in_progress_{false};
+  uint8_t control_version_{0};
 
   GPIOPin *xmos_rst_pin_{nullptr};
 };

@@ -119,3 +119,61 @@ logger:
   level: debug
   logs:
     ltr_als_ps: WARN
+
+sensor:
+  - platform: satellite1
+    name: "Mic 0 Level"
+    satellite1: satellite1_id
+    channel: 0
+    update_interval: 1s
+    entity_category: diagnostic
+
+  - platform: satellite1
+    name: "Mic 1 Level"
+    satellite1: satellite1_id
+    channel: 1
+    update_interval: 1s
+    entity_category: diagnostic
+
+  - platform: satellite1
+    name: "Proc + AGC"
+    satellite1: satellite1_id
+    source: esp_local
+    microphone:
+      microphone: sat1_mics
+      bits_per_sample: 32
+      channels: [0, 1]
+    channel: 0
+    update_interval: 1s
+    entity_category: diagnostic
+
+  - platform: satellite1
+    name: "Proc"
+    satellite1: satellite1_id
+    source: esp_local
+    microphone:
+      microphone: sat1_mics
+      bits_per_sample: 32
+      channels: [0, 1]
+    channel: 1
+    update_interval: 1s
+    entity_category: diagnostic
+
+number:
+  - platform: template
+    name: "Mic Gain"
+    id: mic_gain_ui
+    min_value: 0.0
+    max_value: 100.0
+    step: 0.1
+    mode: box
+    update_interval: never
+    optimistic: true
+    restore_value: true
+    initial_value: 1.0
+    icon: "mdi:microphone-plus"
+    entity_category: config
+    on_value:
+      - satellite1.set_mic_gain:
+          satellite1: satellite1_id
+          gain: !lambda return x;

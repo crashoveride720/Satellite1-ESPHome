@@ -25,6 +25,14 @@ api:
       then:
         - dac_proxy.activate_line_out:
 
+    - action: set_xmos_mic_gain
+      variables:
+        gain: float
+      then:
+        - satellite1.set_mic_gain:
+            satellite1: satellite1_id
+            gain: !lambda return gain;
+
 select:
   - platform: template
     name: Speaker channel output

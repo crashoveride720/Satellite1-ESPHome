@@ -64,7 +64,7 @@ i2c:
     sda: GPIO5
     scl: GPIO6
     frequency: 400kHz
-    scan: True
+    scan: true
 
 spi:
   - id: spi_0

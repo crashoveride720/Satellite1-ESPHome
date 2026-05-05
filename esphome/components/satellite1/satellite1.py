@@ -15,6 +15,10 @@ XMOSHardwareResetAction = namespace.class_(
     "XMOSHardwareResetAction", automation.Action
 )
 
+SetMicGainAction = namespace.class_(
+    "SetMicGainAction", automation.Action
+)
+
 XMOSConnectedStateTrigger = namespace.class_(
     "XMOSConnectedStateTrigger", automation.Trigger
 )
@@ -34,11 +38,14 @@ CONF_XMOS_RST_PIN = "xmos_rst_pin"
 CONF_ON_XMOS_NO_RESPONSE = "on_xmos_no_response"
 CONF_ON_XMOS_CONNECTED = "on_xmos_connected"
 CONF_ON_FLASH_CONNECTED = "on_flash_connected"
+CONF_MIC_GAIN = "mic_gain"
+CONF_GAIN = "gain"
 
 SAT1_CONFIG_SCHEMA = (
      cv.Schema({
         cv.GenerateID(): cv.declare_id(Satellite1),
         cv.Optional(CONF_XMOS_RST_PIN, default="GPIO12"): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_MIC_GAIN, default=1.0): cv.float_range(0.0, 100.0),
 
         cv.Optional(CONF_ON_XMOS_CONNECTED): automation.validate_automation({
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(XMOSConnectedStateTrigger),
@@ -93,3 +100,24 @@ async def erase_memory_action_to_code(config, action_id, template_arg, args):
     await cg.register_parented(var, config[CONF_SATELLITE1])
     return var
 
+
+SET_MIC_GAIN_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_SATELLITE1): cv.use_id(Satellite1),
+        cv.Required(CONF_GAIN): cv.templatable(cv.float_range(0.0, 100.0)),
+    }
+)
+
+
+@automation.register_action(
+    "satellite1.set_mic_gain",
+    SetMicGainAction,
+    SET_MIC_GAIN_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def set_mic_gain_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_SATELLITE1])
+    templ = await cg.templatable(config[CONF_GAIN], args, cg.float_)
+    cg.add(var.set_gain(templ))
+    return var
