@@ -1,16 +1,34 @@
-globals:
-  - id: improv_ble_in_progress
-    type: bool
-    restore_value: no
-    initial_value: 'false'
-
 wifi:
   id: wifi_id
+
   on_connect:
+    - delay: 5s  # Gives time for improv results to be transmitted
+    - ble.disable:
     - lambda: id(improv_ble_in_progress) = false;
     - script.execute: control_leds
+    - lambda: |-
+        id(network_setup_completed) = true;
+
   on_disconnect:
     - script.execute: control_leds
+    - ble.enable:
 
 improv_serial:
 
+esp32_improv:
+  authorizer: btn_action
+  on_start:
+    - lambda: id(improv_ble_in_progress) = true;
+    - script.execute: control_leds
+  on_provisioned:
+    - lambda: id(improv_ble_in_progress) = false;
+    - script.execute: control_leds
+  on_stop:
+    - lambda: id(improv_ble_in_progress) = false;
+    - script.execute: control_leds
+
+sensor:
+  - platform: wifi_signal
+    name: "Wi-Fi Signal Strength"
+    entity_category: "diagnostic"
+    update_interval: 60s
