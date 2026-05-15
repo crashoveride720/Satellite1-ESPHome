@@ -20,17 +20,11 @@ packages:
       # Main config files, don't remove
       - config/satellite1.base.yaml
       - config/common/dashboard_build.yaml
+      - config/common/sendspin.yaml
       - path: config/common/components.external.yaml
         vars:
           ext_comp_repo_url: *repo_url
           ext_comp_repo_ref: *repo_ref
-
-      # yamllint disable rule:comments-indentation
-      # OPTIONALLY, uncomment if you have the smaller LD2410 mmWave sensor connected to your HAT.
-      # - config/common/mmwave_ld2410.yaml
-
-      ## OPTIONALLY, uncomment if you have the larger LD2450 mmWave sensor connected to your HAT.
-      # - config/common/mmwave_ld2450.yaml
 
       ## OPTIONALLY, uncomment if want extra memory, wifi and xmos control of the device.
       # - config/common/debug.yaml
@@ -57,11 +51,6 @@ logger:
 # wifi:
 #   ssid: !secret wifi_ssid
 #   password: !secret wifi_password
-
-## OPTIONALLY, uncomment the following lines to customize the Snapcast server to connect to.
-# snapcast:
-#   id: snapcast_client
-#   server_ip: 192.168.178.101
 
 ## OPTIONALLY, uncomment the following lines to set a custom micro wake word model
 # micro_wake_word:
