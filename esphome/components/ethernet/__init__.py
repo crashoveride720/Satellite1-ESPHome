@@ -5,6 +5,7 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components.network import ip_address_literal
 from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface, SPIComponent
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -391,7 +392,10 @@ SPI_SCHEMA = cv.All(
     BASE_SCHEMA.extend(
         cv.Schema(
             {
-                cv.Optional(CONF_SPI_ID): cv.use_id(SPIComponent),
+                cv.Optional(CONF_SPI_ID): cv.All(
+                    cv.only_on_esp32,
+                    cv.use_id(SPIComponent),
+                ),
                 cv.Optional(CONF_CLK_PIN): pins.internal_gpio_output_pin_number,
                 cv.Optional(CONF_MISO_PIN): pins.internal_gpio_input_pin_number,
                 cv.Optional(CONF_MOSI_PIN): pins.internal_gpio_output_pin_number,
