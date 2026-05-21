@@ -106,14 +106,6 @@ external_components:
       - satellite1_radar
       - tas2780
 
-  - source:
-      # https://github.com/esphome/esphome/pull/12429
-      type: git
-      url: https://github.com/esphome/esphome
-      ref: ff8ce89556748509d7ee8724e12d9d43d3c8c1e8
-    refresh: 300s
-    components: [http_request]
-
 logger:
   deassert_rts_dtr: true
   hardware_uart: USB_SERIAL_JTAG
