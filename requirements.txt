@@ -1,4 +1,4 @@
-esphome==2026.4.5
+esphome==2026.5.1
 setuptools
 yamllint
 pre-commit
