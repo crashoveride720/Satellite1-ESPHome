@@ -43,6 +43,21 @@ micro_wake_word:
     - model: https://fph-firmware-assets.s3.us-east-1.amazonaws.com/wake-word/stop.json
       id: stop
       internal: true
+    - model: config/assets/wake_words/computer/computer.json
+      id: computer
+    - model: config/assets/wake_words/mother/mother.json
+      id: mother
+    - model: config/assets/wake_words/oracle/oracle.json
+      id: oracle
+    - model: config/assets/wake_words/phoenix/phoenix.json
+      id: phoenix
+    - model: config/assets/wake_words/sebastian/sebastian.json
+      id: sebastian
+    - model: config/assets/wake_words/alfred/alfred.json
+      id: alfred
+    - model: config/assets/wake_words/dscharwiss/dscharwiss.json
+      id: dscharwiss
+
   vad:
   microphone:
     microphone: sat1_mics
