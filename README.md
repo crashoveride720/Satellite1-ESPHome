@@ -257,3 +257,5 @@ Checkout out our growing YouTube Channel  - [YouTube.com/@FutureProofHomes](http
 [kicad-url]: https://www.kicad.org/
 [esphome.io]: https://img.shields.io/badge/-ESPHome-000000?style=for-the-badge&logo=esphome&logoColor=white
 [esphome-url]: https://esphome.io/
+
+
