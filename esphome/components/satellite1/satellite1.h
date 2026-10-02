@@ -9,8 +9,12 @@ namespace satellite1 {
 
 static const uint8_t CONTROL_RESOURCE_CNTRL_ID = 1;
 static const uint8_t CONTROL_CMD_READ_BIT = 0x80;
-
-static const uint8_t RET_STATUS_PAYLOAD_AVAIL = 23;
+static const uint8_t CONTROL_SPECIAL_RESID = 0;
+static const uint8_t CONTROL_GET_VERSION = (0 | CONTROL_CMD_READ_BIT);
+static const uint8_t CONTROL_GET_LAST_COMMAND_STATUS = (1 | CONTROL_CMD_READ_BIT);
+static const uint8_t CONTROL_PROTOCOL_VERSION = 0x11;
+static const uint8_t DEVICE_STATUS_READY_REGISTER_IDX = 0;
+static const uint8_t DEVICE_STATUS_READY_VALUE = 1;
 
 static const uint8_t CONTROL_COMMAND_IGNORED_IN_DEVICE = 7;
 
@@ -21,6 +25,8 @@ static const uint8_t GPIO_SERVICER_RESID_PORT_OUT_A = 221;
 static const uint8_t DFU_CONTROLLER_SERVICER_RESID = 240;
 
 static const uint8_t MAX_CONNECTION_ATTEMPTS = 3;
+static const uint32_t STATUS_REFRESH_INTERVAL_MS = 20;
+static const uint32_t XMOS_BOOT_SETTLE_TIME_MS = 4000;
 
 namespace DC_RESOURCE {
 enum dc_resource_enum {
@@ -43,13 +49,15 @@ enum register_id {
   GPIO_PORT_IN_B = 2,
   GPIO_PORT_OUT_A = 3,
 
-  REGISTER_LEN = 4
+  REGISTER_LEN = 10
 };
 }
 
 namespace DC_DFU_CMD {
 enum dc_dfu_cmd_id {
   GET_VERSION = (88 | CONTROL_CMD_READ_BIT),
+  GET_FLASH_SERIAL = (90 | CONTROL_CMD_READ_BIT),
+  GET_IMAGE_STATUS = (91 | CONTROL_CMD_READ_BIT),
 };
 }
 
@@ -60,8 +68,8 @@ enum Satellite1State : uint8_t {
 };
 
 class Satellite1 : public Component,
-                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                         spi::DATA_RATE_1KHZ> {
+                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
+                                         spi::DATA_RATE_8MHZ> {
  public:
   Satellite1State state{SAT_DETACHED_STATE};
   uint8_t xmos_fw_version[5];
@@ -98,6 +106,9 @@ class Satellite1 : public Component,
    * @param payload      Pointer to the buffer containing the data to be sent. For read commands,
    *                     this buffer is updated with the response from the device.
    * @param payload_len  Length of the payload buffer in bytes.
+   * @param status_report_received Optional output set when this transfer copied a controller
+   *                                status-register report.
+   * @param retry        Whether ignored commands should be retried.
    *
    * @return             A boolean value indicating the success or failure of the operation:
    *                     - `true`: The operation was successful. The payload buffer and/or status
@@ -110,7 +121,8 @@ class Satellite1 : public Component,
    *   a status report (resource ID matches `DC_RESOURCE::CNTRL_ID`), the internal status register
    *   is updated.
    */
-  bool transfer(uint8_t resource_id, uint8_t command, uint8_t *payload, uint8_t payload_len);
+  bool transfer(uint8_t resource_id, uint8_t command, uint8_t *payload, uint8_t payload_len,
+                bool *status_report_received = nullptr, bool retry = true);
 
   /**
    * @brief Requests an update to the XMOS device controller's status registers.
@@ -124,28 +136,16 @@ class Satellite1 : public Component,
    *                     - `false`: The update request failed, potentially due to communication
    *                       issues or ignored commands.
    */
-  bool request_status_register_update();
+  bool request_status_register_update(bool retry = true);
 
-  /**
-   * @brief Retrieves the cached value of a specific status register.
-   *
-   * This function returns the current value of a specific status register from the
-   * locally cached `dc_status_register_` buffer. It does not trigger a status
-   * update from the XMOS device controller. To ensure the cached values are up to
-   * date, call `request_status_register_update` before using this function.
-   *
-   * @param reg          The identifier of the status register to query as defined in
-   *                     `DC_STATUS_REGISTER`.
-   *
-   * @return             The cached value of the requested status register as an 8-bit
-   *                     unsigned integer.
-   */
-  uint8_t get_dc_status(DC_STATUS_REGISTER::register_id reg) {
-    assert(reg < DC_STATUS_REGISTER::REGISTER_LEN);
-    return this->dc_status_register_[reg];
-  }
+  /// Returns false until a controller status-register report has been cached.
+  /// @param value Non-null output pointer for the cached register value.
+  bool get_cached_dc_status(DC_STATUS_REGISTER::register_id reg, uint8_t *value);
+  std::string get_hat_serial();
 
   void set_spi_flash_direct_access_mode(bool enable);
+  void set_boot_recovery_pending(bool pending) { this->boot_recovery_pending_ = pending; }
+  bool is_xmos_connected() const { return this->state == SAT_XMOS_CONNECTED_STATE; }
 
   void set_xmos_rst_pin(GPIOPin *xmos_rst_pin) { this->xmos_rst_pin_ = xmos_rst_pin; }
   template<typename F> void add_on_state_callback(F &&callback) {
@@ -156,13 +156,28 @@ class Satellite1 : public Component,
 
  protected:
   bool dfu_get_fw_version_();
-  bool check_for_xmos_();
+  bool dfu_get_flash_serial_();
+  bool dfu_get_image_status_();
+  bool read_control_version_(uint8_t *version);
+  bool is_device_ready_(bool quiet = false);
+  bool check_for_xmos_(bool quiet = false);
+  bool read_last_command_status_(uint8_t *status);
+  void log_last_command_status_(uint8_t resource_id, uint8_t command, const char *context);
   CallbackManager<void()> state_callback_{};
 
   uint32_t last_attempt_timestamp_{0};
+  uint32_t status_refresh_timestamp_{0};
+  uint32_t xmos_boot_ready_timestamp_{0};
 
   uint8_t dc_status_register_[DC_STATUS_REGISTER::REGISTER_LEN];
+  bool status_register_valid_{false};
+  bool status_refresh_attempted_{false};
   bool spi_flash_direct_access_enabled_{false};
+  bool boot_recovery_pending_{false};
+  bool xmos_booting_{false};
+  bool status_query_in_progress_{false};
+  uint8_t control_version_{0};
+  std::string hat_serial_{};
 
   GPIOPin *xmos_rst_pin_{nullptr};
 };

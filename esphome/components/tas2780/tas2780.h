@@ -6,6 +6,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
+#include <functional>
+
 namespace esphome {
 namespace tas2780 {
 
@@ -19,8 +21,13 @@ class TAS2780 : public audio_dac::AudioDac, public Component, public i2c::I2CDev
 
   void init();
   void reset();
-  void activate(uint8_t power_mode = 2);
+  void activate();
   void deactivate();
+  void set_activation_guard(std::function<bool()> activation_guard) {
+    this->activation_guard_ = std::move(activation_guard);
+  }
+  bool is_active() const { return this->active_; }
+  bool is_activation_pending() const { return this->activation_pending_; }
   void update_register();
   void log_error_states();
 
@@ -37,16 +44,30 @@ class TAS2780 : public audio_dac::AudioDac, public Component, public i2c::I2CDev
   void set_selected_channel(ChannelSelect channel) { this->selected_channel_ = channel; }
 
  protected:
+  struct SupplyVoltages {
+    uint8_t mode_ctrl;
+    float vbat1s;
+    float pvdd;
+  };
+
   void set_power_mode_(const uint8_t power_mode);
+  void finish_activation_();
+  bool read_adc12_(uint8_t msb_reg, uint8_t lsb_reg, uint16_t *raw);
+  bool read_supply_voltages_(SupplyVoltages *voltages);
   bool write_mute_();
   bool write_volume_();
 
   float volume_{0};
+  bool active_{false};
+  bool activation_pending_{false};
+  bool last_supply_sample_valid_{false};
+  SupplyVoltages last_supply_voltages_{};
   uint8_t power_mode_{2};
   uint8_t amp_level_{8};
   float vol_range_min_{.3};
   float vol_range_max_{1.};
   ChannelSelect selected_channel_{MONO_DWN_MIX};
+  std::function<bool()> activation_guard_{};
 };
 
 }  // namespace tas2780

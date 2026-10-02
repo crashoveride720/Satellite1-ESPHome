@@ -2,6 +2,8 @@
 
 #ifdef USE_ESP32
 
+#include <cinttypes>
+
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -23,7 +25,7 @@ void I2SAudioBase::dump_i2s_settings() const {
   } else {
     ESP_LOGCONFIG(TAG, "I2S-Writer (%s):", init_str.c_str());
   }
-  ESP_LOGCONFIG(TAG, "  sample-rate: %d slot_mode: %d slot_mask: %d slot_bit_width: %d", this->sample_rate_,
+  ESP_LOGCONFIG(TAG, "  sample-rate: %" PRIu32 " slot_mode: %d slot_mask: %d slot_bit_width: %d", this->sample_rate_,
                 this->slot_mode_, this->std_slot_mask_, this->slot_bit_width_);
   ESP_LOGCONFIG(TAG, "  use_apll: %s", this->use_apll_ ? "yes" : "no");
 }
@@ -135,6 +137,10 @@ bool I2SPortComponent::init_driver_(i2s_std_config_t std_cfg) {
 }
 
 bool I2SAudioOut::start_i2s_channel_(i2s_event_callbacks_t callbacks) {
+  if (!this->parent_->access_permitted()) {
+    ESP_LOGD(TAG, "I2S-TX start deferred until hardware access is permitted");
+    return false;
+  }
   if (this->parent_->tx_handle_ == nullptr) {
     if (this->parent_->rx_handle_ != nullptr) {
       ESP_LOGE(TAG, "Trying to start I2S-TX channel, but RX handle is available. This is not allowed.");
@@ -194,6 +200,10 @@ bool I2SAudioOut::stop_i2s_channel_() {
 }
 
 bool I2SAudioIn::start_i2s_channel_(i2s_event_callbacks_t callbacks) {
+  if (!this->parent_->access_permitted()) {
+    ESP_LOGD(TAG, "I2S-RX start deferred until hardware access is permitted");
+    return false;
+  }
   if (this->parent_->rx_handle_ == nullptr) {
     if (this->parent_->tx_handle_ != nullptr) {
       ESP_LOGE(TAG, "Trying to start I2S-RX channel, but TX handle is available. This is not allowed.");
