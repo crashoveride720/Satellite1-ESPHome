@@ -37,7 +37,9 @@ void IRAM_ATTR fusb302b_isr_handler(void *arg) {
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
   // Notify the task from the ISR, using xTaskNotifyFromISR
-  xTaskNotifyFromISR(xReaderTaskHandle, 0x01, eSetBits, &xHigherPriorityTaskWoken);
+  if (xReaderTaskHandle != nullptr) {
+    xTaskNotifyFromISR(xReaderTaskHandle, 0x01, eSetBits, &xHigherPriorityTaskWoken);
+  }
 
   // Perform a context switch if needed
   if (xHigherPriorityTaskWoken == pdTRUE) {
@@ -49,7 +51,7 @@ static void msg_reader_task(void *params) {
   FUSB302B *fusb302b = (FUSB302B *) params;
   uint32_t ulNotificationValue;
 
-  fusb_status regs;
+  fusb_status regs{};
 
   PDEventInfo event_info;
   PDMsg &msg = event_info.msg;
@@ -62,7 +64,10 @@ static void msg_reader_task(void *params) {
 
   while (true) {
     xTaskNotifyWait(0x00, 0xFFFFFFFF, &ulNotificationValue, portMAX_DELAY);  // 500  / portTICK_PERIOD_MS portMAX_DELAY
-    fusb302b->read_status(regs);
+    if (!fusb302b->read_status(regs)) {
+      ESP_LOGW(TAG, "Failed to read FUSB302B interrupt status");
+      continue;
+    }
     if (regs.interruptb & FUSB_INTERRUPTB_I_GCRCSENT) {
       event_info.event = PD_EVENT_RECEIVED_MSG;
       while (!(regs.status1 & FUSB_STATUS1_RX_EMPTY)) {
@@ -74,7 +79,10 @@ static void msg_reader_task(void *params) {
           printf("Reading failed\n");
         }
 #endif
-        fusb302b->read_status_register(FUSB_STATUS1, regs.status1);
+        if (!fusb302b->read_status_register(FUSB_STATUS1, regs.status1)) {
+          ESP_LOGW(TAG, "Failed to read FUSB302B FIFO status");
+          break;
+        }
       }
     }
 #if FUSB_DEBUG_PRINT
@@ -98,6 +106,11 @@ static void trigger_task(void *params) {
   uint32_t ulNotificationValue;
 
   pd_message_queue = xQueueCreate(5, sizeof(PDEventInfo));
+  if (pd_message_queue == nullptr) {
+    ESP_LOGE(TAG, "Failed to allocate power-delivery message queue");
+    vTaskDelete(nullptr);
+    return;
+  }
 
   gpio_num_t irq_gpio_pin = static_cast<gpio_num_t>(fusb302b->irq_pin_);
 
@@ -110,25 +123,34 @@ static void trigger_task(void *params) {
 
   gpio_config(&io_conf);
 
-  // Install ISR service and attach the ISR handler
-  gpio_set_intr_type((gpio_num_t) irq_gpio_pin, GPIO_INTR_NEGEDGE);
-  gpio_install_isr_service(0);
-  gpio_isr_handler_add(irq_gpio_pin, fusb302b_isr_handler, NULL);
-
-  // Create the task that will wait for notifications
-  xTaskCreatePinnedToCore(msg_reader_task, "fusb3202b_read_task", 4096, fusb302b, configMAX_PRIORITIES / 2,
-                          &xReaderTaskHandle, 1);
+  // Start the reader before enabling interrupts, so the ISR has a valid task handle.
+  if (xTaskCreatePinnedToCore(msg_reader_task, "fusb302b_read_task", 4096, fusb302b,
+                              configMAX_PRIORITIES / 2, &xReaderTaskHandle, 1) != pdPASS) {
+    ESP_LOGE(TAG, "Failed to start FUSB302B reader task");
+    vTaskDelete(nullptr);
+    return;
+  }
+  gpio_set_intr_type(irq_gpio_pin, GPIO_INTR_NEGEDGE);
+  const esp_err_t isr_service_result = gpio_install_isr_service(0);
+  if (isr_service_result != ESP_OK && isr_service_result != ESP_ERR_INVALID_STATE) {
+    ESP_LOGE(TAG, "Failed to install GPIO ISR service: %d", isr_service_result);
+    vTaskDelete(nullptr);
+    return;
+  }
+  if (gpio_isr_handler_add(irq_gpio_pin, fusb302b_isr_handler, nullptr) != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register FUSB302B interrupt handler");
+    vTaskDelete(nullptr);
+    return;
+  }
   PDEventInfo event_info;
 
   while (true) {
     if (xQueueReceive(pd_message_queue, &event_info, portMAX_DELAY) == pdTRUE) {
       // delay needed for getting fusb302b ready for receiving i2c again, is this the right place though?
       // vTaskDelay(pdMS_TO_TICKS(1));
-      void taskENTER_CRITICAL(void);
       PDMsg &msg = event_info.msg;
       // printf( "PD-Received new message with id: %d (%d, %d) [%u].\n", msg.id, msg.type, msg.num_of_obj, millis());
       fusb302b->handle_message_(msg);
-      void taskEXIT_CRITICAL(void);
     }
   }
 }
