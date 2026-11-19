@@ -192,6 +192,7 @@ binary_sensor:
       inverted: false
     name: "Line-Out Connected"
     icon: "mdi:audio-input-stereo-minijack"
+    entity_category: diagnostic
     filters:
       - delayed_on: 200ms
       - delayed_off: 200ms

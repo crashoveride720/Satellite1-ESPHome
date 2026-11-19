@@ -1,0 +1,196 @@
+debug:
+  update_interval: 5s
+
+text_sensor:
+  - platform: debug
+    device:
+      name: "Device Info"
+      entity_category: diagnostic
+    reset_reason:
+      name: "Reset Reason"
+      entity_category: diagnostic
+  - platform: version
+    name: "Firmware Version"
+    hide_timestamp: true
+  - platform: template
+    name: "Micro Wake Word Ring Buffer"
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: return "${mww_ring_buffer_duration}";
+  - platform: template
+    name: "Last Wake Word"
+    entity_category: diagnostic
+    update_interval: 5s
+    lambda: |-
+      return id(last_wake_word).empty() ? std::string("None since boot") : id(last_wake_word);
+  - platform: template
+    name: "Last Voice Assistant Error"
+    entity_category: diagnostic
+    update_interval: 5s
+    lambda: |-
+      return id(last_voice_assistant_error).empty() ? std::string("None since boot") : id(last_voice_assistant_error);
+  - platform: template
+    name: "Voice Assistant Phase"
+    entity_category: diagnostic
+    update_interval: 5s
+    lambda: |-
+      const int phase = id(voice_assistant_phase);
+      if (phase == ${voice_assist_idle_phase_id}) return std::string("Idle");
+      if (phase == ${voice_assist_waiting_for_command_phase_id}) return std::string("Waiting for command");
+      if (phase == ${voice_assist_listening_for_command_phase_id}) return std::string("Listening");
+      if (phase == ${voice_assist_thinking_phase_id}) return std::string("Processing");
+      if (phase == ${voice_assist_replying_phase_id}) return std::string("Replying");
+      if (phase == ${voice_assist_error_phase_id}) return std::string("Error");
+      return std::string("Not ready");
+  - platform: template
+    name: "XMOS Audio Availability"
+    entity_category: diagnostic
+    update_interval: 5s
+    lambda: |-
+      switch (id(satellite1_id).audio_availability()) {
+        case satellite1::AudioAvailability::AVAILABLE: return std::string("Available");
+        case satellite1::AudioAvailability::NOT_CONNECTED: return std::string("XMOS not connected");
+        case satellite1::AudioAvailability::BOOT_SETTLING: return std::string("XMOS boot settling");
+        case satellite1::AudioAvailability::BOOT_RECOVERY: return std::string("XMOS boot recovery");
+        case satellite1::AudioAvailability::DIRECT_FLASH: return std::string("Direct flash mode");
+        case satellite1::AudioAvailability::STARTUP_CHECK: return std::string("Startup check");
+        case satellite1::AudioAvailability::MAINTENANCE: return std::string("Maintenance");
+        case satellite1::AudioAvailability::FLASHING: return std::string("Flashing");
+      }
+      return std::string("Unknown");
+  - platform: template
+    name: "Microphone Mute Diagnostics"
+    entity_category: diagnostic
+    update_interval: 5s
+    lambda: |-
+      const auto &mute = id(satellite1_id).microphone_mute();
+      const auto hardware = mute.hardware_state(millis());
+      std::string result = "Hardware: ";
+      switch (hardware) {
+        case satellite1::HardwareMute::ON: result += "muted"; break;
+        case satellite1::HardwareMute::OFF: result += "unmuted"; break;
+        case satellite1::HardwareMute::UNKNOWN: result += "unknown"; break;
+      }
+      result += mute.software_muted() ? "; software: muted" : "; software: unmuted";
+      result += mute.effectively_muted(millis()) ? "; effective: muted" : "; effective: unmuted";
+      return result;
+  - platform: template
+    name: "Active Audio Outputs"
+    entity_category: diagnostic
+    update_interval: 5s
+    lambda: |-
+      const bool speaker = id(dac_proxy).output_active(satellite1::SPEAKER);
+      const bool line_out = id(dac_proxy).output_active(satellite1::LINE_OUT);
+      if (speaker && line_out) return std::string("Speaker and line-out");
+      if (speaker) return std::string("Speaker");
+      if (line_out) return std::string("Line-out");
+      return std::string("None");
+  - platform: template
+    name: "Speaker Output Phase"
+    entity_category: diagnostic
+    update_interval: 5s
+    lambda: |-
+      switch (id(dac_proxy).output_phase()) {
+        case satellite1::DACOutputPhase::WAITING_FOR_PARENT: return std::string("Waiting for setup");
+        case satellite1::DACOutputPhase::INACTIVE: return std::string("Inactive");
+        case satellite1::DACOutputPhase::PREPARING: return std::string("Preparing");
+        case satellite1::DACOutputPhase::SWITCHING: return std::string("Switching");
+        case satellite1::DACOutputPhase::SYNCHRONIZING: return std::string("Synchronizing");
+        case satellite1::DACOutputPhase::READY: return std::string("Ready");
+        case satellite1::DACOutputPhase::FAILED: return std::string("Failed");
+        case satellite1::DACOutputPhase::DISABLED: return std::string("Disabled");
+        case satellite1::DACOutputPhase::UNAVAILABLE: return std::string("Unavailable");
+      }
+      return std::string("Unknown");
+
+sensor:
+  - platform: debug
+    free:
+      name: "Heap Free"
+      entity_category: diagnostic
+    block:
+      name: "Heap Max Block"
+      entity_category: diagnostic
+    loop_time:
+      name: "Loop Time"
+      entity_category: diagnostic
+    psram:
+      name: "Free PSRAM"
+      entity_category: diagnostic
+  - platform: internal_temperature
+    name: "Internal ESP Temperature"
+    entity_category: diagnostic
+    update_interval: 60s
+  - platform: uptime
+    name: "Uptime"
+    entity_category: diagnostic
+    update_interval: 60s
+  - platform: template
+    name: "Wake Word Detections Since Boot"
+    entity_category: diagnostic
+    accuracy_decimals: 0
+    update_interval: 5s
+    lambda: |-
+      return id(wake_word_detection_count);
+  - platform: template
+    name: "Voice Assistant Errors Since Boot"
+    entity_category: diagnostic
+    accuracy_decimals: 0
+    update_interval: 5s
+    lambda: |-
+      return id(voice_assistant_error_count);
+
+binary_sensor:
+  - platform: template
+    id: diag_wifi_connected
+    name: "Wi-Fi Connected"
+    entity_category: diagnostic
+  - platform: template
+    id: diag_api_connected
+    name: "Home Assistant API Connected"
+    entity_category: diagnostic
+  - platform: template
+    id: diag_wake_word_ready
+    name: "Wake Word Engine Ready"
+    entity_category: diagnostic
+  - platform: template
+    id: diag_wake_word_running
+    name: "Wake Word Engine Running"
+    entity_category: diagnostic
+  - platform: template
+    id: diag_voice_assistant_running
+    name: "Voice Assistant Running"
+    entity_category: diagnostic
+  - platform: template
+    id: diag_speaker_output_ready
+    name: "Speaker Output Ready"
+    entity_category: diagnostic
+  - platform: template
+    id: diag_microphones_muted
+    name: "Microphones Effectively Muted"
+    entity_category: diagnostic
+
+interval:
+  - interval: 5s
+    then:
+      - binary_sensor.template.publish:
+          id: diag_wifi_connected
+          state: !lambda return id(wifi_id).is_connected();
+      - binary_sensor.template.publish:
+          id: diag_api_connected
+          state: !lambda return id(api_id).is_connected();
+      - binary_sensor.template.publish:
+          id: diag_wake_word_ready
+          state: !lambda return id(mww).is_ready();
+      - binary_sensor.template.publish:
+          id: diag_wake_word_running
+          state: !lambda return id(mww).is_running();
+      - binary_sensor.template.publish:
+          id: diag_voice_assistant_running
+          state: !lambda return id(va).is_running();
+      - binary_sensor.template.publish:
+          id: diag_speaker_output_ready
+          state: !lambda return id(dac_proxy).audio_ready();
+      - binary_sensor.template.publish:
+          id: diag_microphones_muted
+          state: !lambda return id(satellite1_id).microphone_mute().effectively_muted(millis());

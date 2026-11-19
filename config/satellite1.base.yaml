@@ -89,9 +89,10 @@ packages:
   led_ring: !include common/led_ring.yaml
   mmwave: !include common/mmwave.yaml
   sendspin: !include common/sendspin.yaml
+  system_diagnostics: !include common/system_diagnostics.yaml
 
   ## OPTIONAL COMPONENTS
-  # debug: !include common/debug.yaml
+  # debug: !include common/debug.yaml  # Optional XMOS maintenance controls
   # developer: !include common/developer.yaml
 
 fusb302b:

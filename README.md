@@ -204,6 +204,8 @@ For WiFi setup and troubleshooting see also:
 1. [Set up you local pipeline](https://www.home-assistant.io/voice_control/voice_remote_local_assistant/)
 2. [Troubleshoot your pipeline](https://www.home-assistant.io/voice_control/troubleshooting/)
 
+For Satellite1 health and audio diagnostic entities, see [Diagnostics](docs/diagnostics.md).
+
 
 <!-- LICENSE -->
 ## License

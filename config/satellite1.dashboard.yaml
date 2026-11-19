@@ -10,6 +10,7 @@ esphome:
   name_add_mac_suffix: true
   friendly_name: ${friendly_name}
 
+# Add config/common/debug.yaml to the package files below for XMOS maintenance controls.
 packages:
   FutureProofHomes.Satellite1:
     url: &repo_url "https://github.com/crashoveride720/Satellite1-ESPHome"
@@ -23,10 +24,6 @@ packages:
         vars:
           ext_comp_repo_url: *repo_url
           ext_comp_repo_ref: *repo_ref
-
-      ## OPTIONALLY, uncomment if want extra memory, wifi and xmos control of the device.
-      # - config/common/debug.yaml
-      # yamllint enable rule:comments-indentation
 
 logger:
   level: ${log_level}
