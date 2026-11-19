@@ -17,7 +17,8 @@ void MemoryFlasher::dump_config() {
 }
 
 bool MemoryFlasher::http_get_md5_() {
-  if (this->md5_url_.empty()) {
+  if (this->md5_url_.empty() || this->http_request_ == nullptr) {
+    ESP_LOGE(TAG, "MD5 URL or HTTP request component is unavailable");
     return false;
   }
 
@@ -25,6 +26,11 @@ bool MemoryFlasher::http_get_md5_() {
   auto container = this->http_request_->get(this->md5_url_);
   if (container == nullptr) {
     ESP_LOGE(TAG, "Failed to connect to MD5 URL");
+    return false;
+  }
+  if (!http_request::is_success(container->status_code)) {
+    ESP_LOGE(TAG, "MD5 request returned HTTP status %d", container->status_code);
+    container->end();
     return false;
   }
   size_t length = container->content_length;
@@ -39,23 +45,17 @@ bool MemoryFlasher::http_get_md5_() {
   }
 
   this->md5_expected_.resize(MD5_SIZE);
-  size_t bytes_read = 0;
-  while (bytes_read < MD5_SIZE) {
-    const int read_len = container->read(reinterpret_cast<uint8_t *>(&this->md5_expected_[bytes_read]),
-                                         MD5_SIZE - bytes_read);
-    if (read_len <= 0) {
-      ESP_LOGE(TAG, "MD5 download stopped after %zu of %u bytes", bytes_read, static_cast<unsigned>(MD5_SIZE));
-      container->end();
-      this->md5_expected_.clear();
-      return false;
-    }
-    bytes_read += static_cast<size_t>(read_len);
-    App.feed_wdt();
-    yield();
-  }
+  const auto result =
+      http_request::http_read_fully(container.get(), reinterpret_cast<uint8_t *>(this->md5_expected_.data()), MD5_SIZE,
+                                    MD5_SIZE, this->http_request_->get_timeout());
   container->end();
-
-  ESP_LOGV(TAG, "Read %zu MD5 bytes", bytes_read);
+  if (result.status != http_request::HttpReadStatus::OK) {
+    ESP_LOGE(TAG, "Failed to read complete MD5 response (status %u, error %d)", static_cast<unsigned>(result.status),
+             result.error_code);
+    this->md5_expected_.clear();
+    return false;
+  }
+  ESP_LOGV(TAG, "Read %u MD5 bytes", static_cast<unsigned>(MD5_SIZE));
   return true;
 }
 

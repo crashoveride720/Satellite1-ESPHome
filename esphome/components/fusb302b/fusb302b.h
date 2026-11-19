@@ -49,10 +49,11 @@ class FUSB302B : public PowerDelivery, public Component, protected i2c::I2CDevic
   bool check_chip_id();
   bool enable_auto_crc();
   bool disable_auto_crc();
+  void handle_pd_event_(PowerDeliveryEvent event);
 
  public:
   bool cc_line_selection_();
-  void fusb_reset_();
+  bool fusb_reset_();
 
   void check_status_();
 

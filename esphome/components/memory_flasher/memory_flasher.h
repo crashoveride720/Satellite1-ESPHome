@@ -178,7 +178,7 @@ class MemoryFlasher : public Component {
   bool validate_url_(const std::string &url);
   void cleanup_(const std::shared_ptr<http_request::HttpContainer> &container);
 
-  http_request::HttpRequestComponent *http_request_;
+  http_request::HttpRequestComponent *http_request_{nullptr};
 
   std::string md5_computed_{};
   std::string md5_expected_{};

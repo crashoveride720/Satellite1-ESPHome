@@ -64,6 +64,14 @@ static bool parse_uint_field_(cJSON *root, const char *name, uint32_t &out, bool
   return true;
 }
 
+static bool parse_int16_coordinate_(cJSON *item, int16_t &out) {
+  if (!cJSON_IsNumber(item) || !std::isfinite(item->valuedouble) ||
+      std::floor(item->valuedouble) != item->valuedouble || item->valuedouble < -6000 || item->valuedouble > 6000)
+    return false;
+  out = static_cast<int16_t>(item->valuedouble);
+  return true;
+}
+
 void RadarTunerServer::update_target(int index, float x, float y) {
   if (index >= 0 && index < RT_NUM_TARGETS) {
     targets_[index].x = x;
@@ -203,7 +211,8 @@ esp_err_t RadarTunerServer::handle_ld2410_patch_config_(httpd_req_t *req) {
     }
     for (size_t g = 0; g < LD2410Handler::NUM_GATES; g++) {
       cJSON *item = cJSON_GetArrayItem(move_thresholds, static_cast<int>(g));
-      if (!cJSON_IsNumber(item) || item->valuedouble < 0 || item->valuedouble > 100) {
+      if (!cJSON_IsNumber(item) || !std::isfinite(item->valuedouble) || item->valuedouble < 0 ||
+          item->valuedouble > 100 || std::floor(item->valuedouble) != item->valuedouble) {
         cJSON_Delete(root);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid move threshold value");
         return ESP_FAIL;
@@ -222,7 +231,8 @@ esp_err_t RadarTunerServer::handle_ld2410_patch_config_(httpd_req_t *req) {
     }
     for (size_t g = 0; g < LD2410Handler::NUM_GATES; g++) {
       cJSON *item = cJSON_GetArrayItem(still_thresholds, static_cast<int>(g));
-      if (!cJSON_IsNumber(item) || item->valuedouble < 0 || item->valuedouble > 100) {
+      if (!cJSON_IsNumber(item) || !std::isfinite(item->valuedouble) || item->valuedouble < 0 ||
+          item->valuedouble > 100 || std::floor(item->valuedouble) != item->valuedouble) {
         cJSON_Delete(root);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid still threshold value");
         return ESP_FAIL;
@@ -319,10 +329,8 @@ static bool parse_polygon_points_(cJSON *array, LD2450Handler::Polygon &polygon)
       return false;
     cJSON *x = cJSON_GetObjectItemCaseSensitive(point, "x");
     cJSON *y = cJSON_GetObjectItemCaseSensitive(point, "y");
-    if (!cJSON_IsNumber(x) || !cJSON_IsNumber(y))
+    if (!parse_int16_coordinate_(x, polygon.points[i].x) || !parse_int16_coordinate_(y, polygon.points[i].y))
       return false;
-    polygon.points[i].x = static_cast<int16_t>(x->valueint);
-    polygon.points[i].y = static_cast<int16_t>(y->valueint);
   }
   for (size_t i = static_cast<size_t>(count); i < LD2450Handler::MAX_ZONE_POINTS; i++) {
     polygon.points[i].x = 0;
