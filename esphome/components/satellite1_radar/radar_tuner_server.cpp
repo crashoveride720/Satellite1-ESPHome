@@ -56,7 +56,8 @@ static bool parse_uint_field_(cJSON *root, const char *name, uint32_t &out, bool
   cJSON *item = cJSON_GetObjectItemCaseSensitive(root, name);
   if (item == nullptr)
     return true;
-  if (!cJSON_IsNumber(item) || item->valuedouble < 0)
+  if (!cJSON_IsNumber(item) || !std::isfinite(item->valuedouble) || item->valuedouble < 0 ||
+      item->valuedouble > 4294967295.0 || std::floor(item->valuedouble) != item->valuedouble
     return false;
   out = static_cast<uint32_t>(item->valuedouble);
   present = true;
