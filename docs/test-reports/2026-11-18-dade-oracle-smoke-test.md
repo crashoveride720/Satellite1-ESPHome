@@ -1,63 +1,59 @@
-# Dade Firmware — Initial Hardware Smoke Test
+# Dade Firmware — Oracle Hardware Validation
 
 **Test date:** 2026-11-18 (Phoenix local time, MST)  
 **Device:** Oracle / `satellite1-d8b450`  
 **Device address:** `192.168.0.74`  
 **Firmware reported by device:** ESPHome `2026.11.0`  
 **Build timestamp reported by device:** `2026-11-18 19:20:51 -0700`  
-**Test log:** User-supplied ESPHome API log, `satellite1-d8b450-logs(2).txt`  
-**Branch under test:** `Dade` (identified by the operator as the source of this firmware)
+**Branch under test:** `Dade` (operator-confirmed firmware source)  
+**Test evidence:** ESPHome API log supplied by the operator, plus operator confirmation of functional testing
 
-## Result
+## Overall result
 
-**PASS — initial boot, network/API connectivity, Music Assistant transport connection, and basic sensor/radar reporting observed.**
+**PASS — operator reports that the Dade firmware is working across the device's tested functionality.**
 
-The device was reachable at its configured address. ESPHome resolved the node, connected, and completed the API handshake. The device then reported a successful Sendspin Noise handshake and an active transport connection to Music Assistant.
+The operator confirmed that audio playback, wake-word operation, the web interface, and the rest of the tested Satellite1 functionality are working. This is broader validation than the initial startup log alone demonstrates.
 
-## Observed checks
+## Functional validation
 
-| Check | Observed result | Status |
+| Subsystem / feature | Result | Evidence |
 |---|---|---|
-| ESPHome API discovery | Node resolved at `192.168.0.74` | PASS |
-| ESPHome API connection | Connected successfully | PASS |
-| API handshake | Successful | PASS |
-| Firmware startup | ESPHome `2026.11.0`; ESP32-S3 rev 0.2, dual core | PASS |
-| Music Assistant / Sendspin | Noise handshake completed; transport active; server connection admitted | PASS |
-| Music Assistant group state | Group update received; group `Oracle`, state `stopped` | PASS |
-| Ambient light sensor | Reported `558.0 lx` | PASS |
-| USB-C power text sensor | Reported `1.5A (max) @ 20V` | PASS |
-| Radar target counts | Still/moving counts reported and changed during the capture | PASS |
-| Radar target direction | Reported `Moving Away`, then `Approaching` | OBSERVED |
+| Firmware boot and initialization | PASS | ESPHome log |
+| ESPHome API discovery, connection, and handshake | PASS | ESPHome log |
+| Music Assistant / Sendspin connection | PASS | ESPHome log; operator reports audio playback works |
+| Audio playback | PASS | Operator-confirmed functional test |
+| Wake-word detection | PASS | Operator-confirmed functional test |
+| Web interface | PASS | Operator-confirmed functional test |
+| Ambient light sensor | PASS | ESPHome log: 558.0 lx |
+| USB-C power reporting | PASS | ESPHome log: 1.5A (max) @ 20V |
+| Radar target reporting | PASS | ESPHome log: still/moving counts and direction updates |
+| Other tested Satellite1 functionality | PASS | Operator reports all tested functionality is working |
 
-## Scope and limitations
+## Boot and connectivity evidence
 
-This is an **initial smoke test**, not a complete firmware qualification.
-
-The captured log contains 24 lines spanning approximately 4 seconds. It demonstrates successful startup and the specific communications/sensor reports listed above. It does **not** establish:
-
-- audible speaker output or sustained audio playback;
-- wake-word detection or microphone performance;
-- long-duration stability or behavior after repeated reboots;
-- correctness of USB-C negotiation beyond the reported sensor text;
-- radar accuracy against a controlled physical test;
-- operation of every Satellite1 peripheral or every code path changed on the Dade branch.
-
-The log reports project version `dev` and does not include a Git commit SHA or firmware image checksum. The branch attribution is therefore recorded as the operator's identification of the firmware source, not as independently verified binary provenance.
-
-## Follow-up validation
-
-1. Confirm audible playback through Music Assistant.
-2. Exercise wake-word detection and microphone capture.
-3. Observe the device during an extended run and after a reboot.
-4. Verify USB-C power reporting against the actual power source.
-5. Test radar behavior with controlled stationary and moving targets.
-
-## Evidence
-
-The test evidence is the user-provided ESPHome log. Key entries include:
+The supplied log records:
 
 - `19:26:47.840` — Sendspin Noise handshake completed.
 - `19:26:47.841` — Noise transport active and Music Assistant server connected.
-- `19:26:47.845` — ESPHome `2026.11.0` build and ESP32-S3 identification reported.
+- `19:26:47.845` — ESPHome `2026.11.0` build and ESP32-S3 rev 0.2 (dual core) reported.
 - `19:26:50.116` — USB-C power supply text sensor reported `1.5A (max) @ 20V`.
-- `19:26:50.117`–`19:26:51.777` — radar target counts and direction updates reported.
+- `19:26:50.117`–`19:26:51.777` — Radar target counts and direction updates reported.
+
+The device resolved and connected at `192.168.0.74`, completed the ESPHome API handshake, and connected to Music Assistant using the Sendspin Noise transport.
+
+## Test scope and provenance
+
+This report combines two evidence types:
+
+1. **Direct log evidence:** The supplied 24-line ESPHome log captures approximately four seconds of successful connection and sensor activity.
+2. **Operator functional confirmation:** The operator reports that audio playback, wake-word operation, the web interface, and all other tested functionality are working.
+
+The log reports project version `dev` and does not include a Git commit SHA or firmware image checksum. The association with branch `Dade` is based on the operator's confirmation of which firmware was flashed; binary provenance was not independently verified from the log.
+
+This report records a successful functional test on the device. It is not a claim of exhaustive qualification of every possible operating condition or long-duration reliability.
+
+## Result summary
+
+**Dade firmware: FUNCTIONAL TEST PASSED on Oracle.**
+
+No failures were reported by the operator during the tested functionality.
