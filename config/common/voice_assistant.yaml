@@ -176,7 +176,7 @@ voice_assistant:
     - text_sensor.template.publish:
         id: diag_va_phase
         state: "Error"
-          - script.execute: control_leds
+    - script.execute: control_leds
     # Stop ducking audio.
     - mixer_speaker.apply_ducking:
         id: media_mixing_input
