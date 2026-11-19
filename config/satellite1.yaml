@@ -53,29 +53,14 @@ ota:
   - platform: http_request
     id: ota_http_request
 
+# Dade production firmware is published as a manifest asset on GitHub Releases.
+# GitHub's latest endpoint selects the latest non-prerelease release.
 update:
   - platform: http_request
     name: None
     id: update_http_request
-    source: https://raw.githubusercontent.com/FutureProofHomes/Documentation/refs/heads/main/manifest.json
+    source: https://github.com/crashoveride720/Satellite1-ESPHome/releases/latest/download/manifest.json
     update_interval: never
-
-switch:
-  - platform: template
-    id: beta_firmware
-    name: Beta firmware
-    icon: "mdi:test-tube"
-    entity_category: diagnostic
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_OFF
-    on_turn_on:
-      - logger.log: "OTA updates set to use Beta firmware"
-      - lambda: id(update_http_request).set_source_url("https://raw.githubusercontent.com/FutureProofHomes/Documentation/refs/heads/main/manifest-beta.json");
-      - component.update: update_http_request
-    on_turn_off:
-      - logger.log: "OTA updates set to use Production firmware"
-      - lambda: id(update_http_request).set_source_url("https://raw.githubusercontent.com/FutureProofHomes/Documentation/refs/heads/main/manifest.json");
-      - component.update: update_http_request
 
 external_components:
   - source:
