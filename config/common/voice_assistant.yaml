@@ -38,6 +38,9 @@ microphone:
 
 micro_wake_word:
   id: mww
+  # Keep a short capture backlog during Sendspin speaker-task startup.
+  # ESPHome's 120 ms default was exceeded once during Jarvis playback startup.
+  ring_buffer_duration: 250ms
   models:
     - model: https://fph-firmware-assets.s3.us-east-1.amazonaws.com/wake-word/hey_jarvis.json
       id: hey_jarvis

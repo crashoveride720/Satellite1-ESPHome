@@ -73,3 +73,13 @@ The log reports project version `dev` and does not include a Git commit SHA or f
 **Dade firmware on Jarvis: Sendspin and hardware smoke test PASSED for the behaviors recorded above.**
 
 The only notable issue in this capture is the transient micro-wake-word ring-buffer warning during playback. Sendspin synchronization recovered, the stream ended normally, and the media player returned to IDLE.
+
+## Follow-up diagnosis
+
+The warning means the microphone producer could not fit a complete audio capture chunk in the micro-wake-word ring buffer. ESPHome 2026.11.0 defaults that buffer to 120 ms. With the configured 16 kHz, 16-bit, mono wake-word stream, that is 3,840 bytes. When a complete write does not fit, the producer requests that the inference task clear buffered audio, which temporarily interrupts detection continuity.
+
+This capture records one warning at 19:38:51.474, immediately after the media player entered `PLAYING` at 19:38:51.472. It records no further overflow during the remaining playback. The timing points to a transient scheduling backlog during playback startup: the Dade microphone capture task runs at priority 17, the I2S speaker task at priority 19, and ESPHome's micro-wake-word inference task at priority 3. The report contains no task scheduling trace or buffer occupancy measurement, so the exact stall duration and scheduling event were not directly measured.
+
+Dade now sets `ring_buffer_duration` to 250 ms (8,000 bytes for this stream) in `config/common/voice_assistant.yaml`. This gives inference additional room to absorb a short startup burst while preserving the existing audio routes, sample format, and playback configuration. It does not establish that the warning is eliminated under every load.
+
+**Focused retest:** on Jarvis, run a wake-word detection session while starting a 48 kHz stereo Sendspin stream; record whether the ring-buffer warning recurs during startup and sustained playback, and confirm wake-word detection still works before, during, and after playback. This firmware-only validation requires the device log; the original smoke-test capture did not include a wake-word detection event.
