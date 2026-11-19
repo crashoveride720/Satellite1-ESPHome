@@ -39,16 +39,24 @@ bool MemoryFlasher::http_get_md5_() {
   }
 
   this->md5_expected_.resize(MD5_SIZE);
-  int read_len = 0;
-  while (container->get_bytes_read() < MD5_SIZE) {
-    read_len = container->read((uint8_t *) this->md5_expected_.data(), MD5_SIZE);
+  size_t bytes_read = 0;
+  while (bytes_read < MD5_SIZE) {
+    const int read_len = container->read(reinterpret_cast<uint8_t *>(&this->md5_expected_[bytes_read]),
+                                         MD5_SIZE - bytes_read);
+    if (read_len <= 0) {
+      ESP_LOGE(TAG, "MD5 download stopped after %zu of %u bytes", bytes_read, static_cast<unsigned>(MD5_SIZE));
+      container->end();
+      this->md5_expected_.clear();
+      return false;
+    }
+    bytes_read += static_cast<size_t>(read_len);
     App.feed_wdt();
     yield();
   }
   container->end();
 
-  ESP_LOGV(TAG, "Read len: %d, MD5 expected: %hhu", read_len, MD5_SIZE);
-  return read_len == MD5_SIZE;
+  ESP_LOGV(TAG, "Read %zu MD5 bytes", bytes_read);
+  return true;
 }
 
 bool MemoryFlasher::validate_url_(const std::string &url) {
