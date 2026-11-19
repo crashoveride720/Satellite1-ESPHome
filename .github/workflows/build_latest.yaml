@@ -46,7 +46,7 @@ jobs:
       files: |
         config/satellite1.yaml
       esphome-version: ${{ needs.resolve-esphome-version.outputs.esphome-version }}
-      release-summary: develop-branch
+      release-summary: Dade development firmware
       release-url:
       release-version:
 
