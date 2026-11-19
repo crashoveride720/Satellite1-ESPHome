@@ -1,8 +1,9 @@
 # Satellite1 diagnostics
 
 The shared Dade base configuration exposes passive diagnostic entities in
-Home Assistant. They update at a modest interval and do not change audio
-routing, microphone policy, or device operation.
+Home Assistant. Slow-changing health metrics poll every 30 seconds; counters poll every 60 seconds. Last-event
+text sensors and Voice Assistant phase update only when their corresponding events occur.
+The package does not change audio routing, microphone policy, or device operation.
 
 ## System health
 
@@ -27,6 +28,9 @@ routing, microphone policy, or device operation.
   Phase/Ready**, and **Active Audio Outputs** show the main audio-path gates and
   selected physical outputs.
 - Existing media-player entities report Sendspin and local playback state.
+
+Binary connectivity/readiness diagnostics are sampled every 30 seconds. This avoids repeatedly
+publishing unchanged states every five seconds.
 
 The micro-wake-word ring-buffer overflow warning remains available in ESPHome
 logs. ESPHome 2026.11.0 does not expose that warning as a YAML trigger, so this
