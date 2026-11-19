@@ -1,5 +1,5 @@
 debug:
-  update_interval: 5s
+  update_interval: 30s
 
 text_sensor:
   - platform: debug
@@ -18,21 +18,24 @@ text_sensor:
     update_interval: 60s
     lambda: return "${mww_ring_buffer_duration}";
   - platform: template
+    id: diag_last_wake_word
     name: "Last Wake Word"
     entity_category: diagnostic
-    update_interval: 5s
+    update_interval: never
     lambda: |-
       return id(last_wake_word).empty() ? std::string("None since boot") : id(last_wake_word);
   - platform: template
+    id: diag_last_va_error
     name: "Last Voice Assistant Error"
     entity_category: diagnostic
-    update_interval: 5s
+    update_interval: never
     lambda: |-
       return id(last_voice_assistant_error).empty() ? std::string("None since boot") : id(last_voice_assistant_error);
   - platform: template
+    id: diag_va_phase
     name: "Voice Assistant Phase"
     entity_category: diagnostic
-    update_interval: 5s
+    update_interval: never
     lambda: |-
       const int phase = id(voice_assistant_phase);
       if (phase == ${voice_assist_idle_phase_id}) return std::string("Idle");
@@ -45,7 +48,7 @@ text_sensor:
   - platform: template
     name: "XMOS Audio Availability"
     entity_category: diagnostic
-    update_interval: 5s
+    update_interval: 30s
     lambda: |-
       switch (id(satellite1_id).audio_availability()) {
         case satellite1::AudioAvailability::AVAILABLE: return std::string("Available");
@@ -61,7 +64,7 @@ text_sensor:
   - platform: template
     name: "Microphone Mute Diagnostics"
     entity_category: diagnostic
-    update_interval: 5s
+    update_interval: 30s
     lambda: |-
       const auto &mute = id(satellite1_id).microphone_mute();
       const auto hardware = mute.hardware_state(millis());
@@ -77,7 +80,7 @@ text_sensor:
   - platform: template
     name: "Active Audio Outputs"
     entity_category: diagnostic
-    update_interval: 5s
+    update_interval: 30s
     lambda: |-
       const bool speaker = id(dac_proxy).output_active(satellite1::SPEAKER);
       const bool line_out = id(dac_proxy).output_active(satellite1::LINE_OUT);
@@ -88,7 +91,7 @@ text_sensor:
   - platform: template
     name: "Speaker Output Phase"
     entity_category: diagnostic
-    update_interval: 5s
+    update_interval: 30s
     lambda: |-
       switch (id(dac_proxy).output_phase()) {
         case satellite1::DACOutputPhase::WAITING_FOR_PARENT: return std::string("Waiting for setup");
@@ -129,14 +132,14 @@ sensor:
     name: "Wake Word Detections Since Boot"
     entity_category: diagnostic
     accuracy_decimals: 0
-    update_interval: 5s
+    update_interval: 60s
     lambda: |-
       return id(wake_word_detection_count);
   - platform: template
     name: "Voice Assistant Errors Since Boot"
     entity_category: diagnostic
     accuracy_decimals: 0
-    update_interval: 5s
+    update_interval: 60s
     lambda: |-
       return id(voice_assistant_error_count);
 
@@ -171,7 +174,7 @@ binary_sensor:
     entity_category: diagnostic
 
 interval:
-  - interval: 5s
+  - interval: 30s
     then:
       - binary_sensor.template.publish:
           id: diag_wifi_connected
