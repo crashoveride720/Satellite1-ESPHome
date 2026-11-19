@@ -77,6 +77,9 @@ micro_wake_word:
     - lambda: |-
         id(wake_word_detection_count)++;
         id(last_wake_word) = wake_word;
+    - text_sensor.template.publish:
+        id: diag_last_wake_word
+        state: !lambda return id(last_wake_word);
     # If the wake word is detected when the device is muted (Possible with the software mute switch): Do nothing
     - if:
         condition:
@@ -145,15 +148,24 @@ voice_assistant:
         then:
           - script.execute: start_micro_wake_word
     - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
+    - text_sensor.template.publish:
+        id: diag_va_phase
+        state: "Idle"
     - script.execute: control_leds
   on_client_disconnected:
     - voice_assistant.stop:
     - lambda: id(voice_assistant_phase) = ${voice_assist_not_ready_phase_id};
+    - text_sensor.template.publish:
+        id: diag_va_phase
+        state: "Not ready"
     - script.execute: control_leds
   on_error:
     - lambda: |-
         id(voice_assistant_error_count)++;
         id(last_voice_assistant_error) = code + ": " + message;
+    - text_sensor.template.publish:
+        id: diag_last_va_error
+        state: !lambda return id(last_voice_assistant_error);
     - if:
         condition:
           and:
@@ -161,6 +173,9 @@ voice_assistant:
             - lambda: return code != "duplicate_wake_up_detected";
         then:
           - lambda: id(voice_assistant_phase) = ${voice_assist_error_phase_id};
+    - text_sensor.template.publish:
+        id: diag_va_phase
+        state: "Error"
           - script.execute: control_leds
     # Stop ducking audio.
     - mixer_speaker.apply_ducking:
@@ -182,12 +197,21 @@ voice_assistant:
         duration: 0.0s          # The duration of the transition (default is 0)
   on_listening:
     - lambda: id(voice_assistant_phase) = ${voice_assist_waiting_for_command_phase_id};
+    - text_sensor.template.publish:
+        id: diag_va_phase
+        state: "Waiting for command"
     - script.execute: control_leds
   on_stt_vad_start:
     - lambda: id(voice_assistant_phase) = ${voice_assist_listening_for_command_phase_id};
+    - text_sensor.template.publish:
+        id: diag_va_phase
+        state: "Listening"
     - script.execute: control_leds
   on_stt_vad_end:
     - lambda: id(voice_assistant_phase) = ${voice_assist_thinking_phase_id};
+    - text_sensor.template.publish:
+        id: diag_va_phase
+        state: "Processing"
     - script.execute: control_leds
   on_intent_progress:
     - if:
@@ -196,6 +220,9 @@ voice_assistant:
           lambda: 'return !x.empty();'
         then:
           - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
+          - text_sensor.template.publish:
+              id: diag_va_phase
+              state: "Replying"
           - script.execute: control_leds
           # Start a script that would potentially enable the stop word if the response is longer than a second
           - script.execute: activate_stop_word_once
