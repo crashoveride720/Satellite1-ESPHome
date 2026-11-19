@@ -233,6 +233,9 @@ voice_assistant:
           lambda: 'return id(voice_assistant_phase) != ${voice_assist_replying_phase_id};'
         then:
           - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
+          - text_sensor.template.publish:
+              id: diag_va_phase
+              state: "Replying"
           - script.execute: control_leds
           # Start a script that would potentially enable the stop word if the response is longer than a second
           - script.execute: activate_stop_word_once
@@ -262,6 +265,9 @@ voice_assistant:
           - delay: 1s
     # Reset the voice assistant phase id and reset the LED animations.
     - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
+    - text_sensor.template.publish:
+        id: diag_va_phase
+        state: "Idle"
     - script.execute: control_leds
 
   on_timer_finished:
