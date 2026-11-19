@@ -6,10 +6,13 @@ on:
       - develop
       - staging
       - main
+      - Dade
   pull_request:
     branches:
       - staging
       - main
+      - Dade
+      - develop
   workflow_dispatch:
 
 env:
@@ -51,13 +54,13 @@ jobs:
     name: Build dashboard import smoke test
     needs:
       - resolve-esphome-version
-    if: ${{ (github.event_name == 'push' && github.ref_name == 'develop') || github.event_name == 'workflow_dispatch' }}
+    if: ${{ (github.event_name == 'push' && (github.ref_name == 'develop' || github.ref_name == 'Dade')) || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - name: Download dashboard import config from current commit
         run: |
           mkdir -p dashboard-smoke
-          url="https://raw.githubusercontent.com/FutureProofHomes/Satellite1-ESPHome/${{ github.sha }}/config/satellite1.dashboard.yaml"
+          url="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/config/satellite1.dashboard.yaml"
           curl -fsSL "$url" -o dashboard-smoke/satellite1.dashboard.yaml
 
       - name: Show dashboard import refs
