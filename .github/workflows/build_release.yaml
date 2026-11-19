@@ -1,4 +1,4 @@
-name: Build-and-Release-Satellite-Firmware
+name: Build-and-Release-Dade-Firmware
 
 on:
   push:
@@ -111,12 +111,22 @@ jobs:
         with:
           path: files
 
-      - name: Create zip files
+      - name: Collect firmware and OTA manifest
+        shell: bash
         run: |
           mkdir -p build
-          echo "Copying all files to build directory"
           find files -name "*.bin" -exec cp {} build/ \;
           find files -name "*.elf" -exec cp {} build/ \;
+
+          manifest="$(find files -name manifest.json -type f -print -quit)"
+          if [ -z "$manifest" ]; then
+            echo "ESPHome build did not produce manifest.json; refusing to publish a release without its OTA manifest."
+            find files -maxdepth 5 -type f -print
+            exit 1
+          fi
+          cp "$manifest" build/manifest.json
+          echo "Collected OTA manifest from: $manifest"
+          ls -lh build
 
       - name: Create release
         uses: softprops/action-gh-release@v2
@@ -124,6 +134,7 @@ jobs:
           files: |
             build/*.bin
             build/*.elf
+            build/manifest.json
           draft: true
           prerelease: ${{ contains(needs.prepare.outputs.next_tag, '-beta') || contains(needs.prepare.outputs.next_tag, '-alpha') }}
           generate_release_notes: false
