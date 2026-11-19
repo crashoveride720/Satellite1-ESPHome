@@ -124,8 +124,21 @@ jobs:
             find files -maxdepth 5 -type f -print
             exit 1
           fi
-          cp "$manifest" build/manifest.json
-          echo "Collected OTA manifest from: $manifest"
+          # build.yaml normalizes firmware asset names to the source YAML basename.
+          # Keep the manifest paths in sync with those published asset names.
+          test -f build/satellite1.ota.bin
+          test -f build/satellite1.factory.bin
+          jq '
+            if (.builds | type) != "array" or (.builds | length) != 1 then
+              error("Expected one complete ESPHome build manifest")
+            elif (.builds[0].ota.path | type) != "string" or (.builds[0].parts[0].path | type) != "string" then
+              error("Manifest is missing OTA or factory firmware paths")
+            else
+              .builds[0].ota.path = "satellite1.ota.bin" |
+              .builds[0].parts[0].path = "satellite1.factory.bin"
+            end
+          ' "$manifest" > build/manifest.json
+          echo "Collected and normalized OTA manifest from: $manifest"
           ls -lh build
 
       - name: Create release
